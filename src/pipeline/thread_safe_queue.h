@@ -50,32 +50,43 @@ private:
     bool shutdown_{false};
 };
 
-// Template implementation in header (skeleton only — implement logic in place)
 template <typename T>
 void ThreadSafeQueue<T>::push(T item) {
     (void)item;
-    // TODO: lock mutex, push item onto queue_, notify one waiter via cond_
+    std::lock_guard<std::mutex> lock(mutex_); 
+    queue_.push(item); 
+    cond_.notify_one(); 
+    return; 
 }
 
 template <typename T>
 std::optional<T> ThreadSafeQueue<T>::pop() {
-    // TODO: lock mutex, wait on cond_ until !queue_.empty() or shutdown_; then pop and return front, or return nullopt if shutdown
-    return std::nullopt;
+    std::unique_lock<std::mutex> lock(mutex_);  
+    cond_.wait(lock, [this] { return !queue_.empty() || shutdown_; }); 
+    if (shutdown_) {
+        return std::nullopt;
+    }
+    T item = queue_.front(); 
+    queue_.pop(); 
+    return item; 
 }
 
 template <typename T>
 void ThreadSafeQueue<T>::shutdown() {
-    // TODO: set shutdown_ = true under lock, call cond_.notify_all()
+    std::lock_guard<std::mutex> lock(mutex_); 
+    shutdown_ = true; 
+    cond_.notify_all(); 
+    return; 
 }
 
 template <typename T>
 size_t ThreadSafeQueue<T>::size() const {
-    // TODO: lock mutex, return queue_.size()
-    return 0;
+    std::lock_guard<std::mutex> lock(mutex_); 
+    return queue_.size(); 
 }
 
 template <typename T>
 bool ThreadSafeQueue<T>::is_shutdown() const {
-    // TODO: lock mutex, return shutdown_
-    return false;
+    std::lock_guard<std::mutex> lock(mutex_); 
+    return shutdown_; 
 }
