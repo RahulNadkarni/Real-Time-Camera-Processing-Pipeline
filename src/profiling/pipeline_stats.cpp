@@ -1,48 +1,78 @@
 #include "pipeline_stats.h"
 #include <chrono>
+#include <algorithm>
 
 PipelineStats::PipelineStats() {
-    // TODO: init fps_window_start_ to now(); set_num_stages can be called later
+    fps_window_start_ = std::chrono::steady_clock::now();
 }
 
 PipelineStats::PipelineStats(size_t num_stages) : num_stages_(num_stages) {
-    // TODO: resize avg_latency_us_ to num_stages, init to 0; init fps_window_start_
+    avg_latency_us_.resize(num_stages, 0);
+    fps_window_start_ = std::chrono::steady_clock::now();
 }
 
 void PipelineStats::set_num_stages(size_t num_stages) {
-    // TODO: set num_stages_, resize avg_latency_us_
+    num_stages_ = num_stages;
+    avg_latency_us_.resize(num_stages, 0);
 }
 
 void PipelineStats::record_stage_latency_us(size_t stage_index, int64_t latency_us) {
-    (void)stage_index;
-    (void)latency_us;
-    // TODO: update exponential moving average (or sliding window) for this stage; keep lock-free
+    std::lock_guard<std::mutex> lock(latency_mutex_);
+    if (stage_index < avg_latency_us_.size()) {
+        avg_latency_us_[stage_index] = latency_us;
+    }
 }
 
 void PipelineStats::record_drop() {
-    // TODO: drops_.fetch_add(1, std::memory_order_relaxed)
+    drops_.fetch_add(1, std::memory_order_relaxed);
 }
 
 void PipelineStats::record_frame_displayed() {
-    // TODO: frames_displayed_.fetch_add(1); update fps window if needed
+    frames_displayed_.fetch_add(1, std::memory_order_relaxed);
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(fps_mutex_);
+    auto elapsed_sec = std::chrono::duration_cast<std::chrono::seconds>(now - fps_window_start_).count();
+    if (elapsed_sec >= 1) {
+        fps_window_start_ = now;
+        fps_.store(static_cast<double>(frames_displayed_.load(std::memory_order_relaxed)));
+        frames_displayed_.store(0, std::memory_order_relaxed);
+    }
 }
 
 int64_t PipelineStats::get_avg_latency_us(size_t stage_index) const {
-    (void)stage_index;
-    // TODO: return current average for stage_index (from avg_latency_us_ or internal EMA state)
-    return 0;
+    std::lock_guard<std::mutex> lock(latency_mutex_);
+    if (stage_index >= avg_latency_us_.size()) {
+        return 0;
+    }
+    return avg_latency_us_[stage_index];
 }
 
 uint64_t PipelineStats::get_drop_count() const {
-    // TODO: return drops_.load(std::memory_order_relaxed)
-    return 0;
+    return drops_.load(std::memory_order_relaxed);
 }
 
 double PipelineStats::get_fps() const {
-    // TODO: compute fps from frames_displayed_ over last N seconds (sliding window)
-    return 0.0;
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    {
+        std::lock_guard<std::mutex> lock(fps_mutex_);
+        auto elapsed_sec = std::chrono::duration_cast<std::chrono::seconds>(now - fps_window_start_).count();
+        if (elapsed_sec >= 1) {
+            fps_window_start_ = now;
+            fps_.store(static_cast<double>(frames_displayed_.load(std::memory_order_relaxed)));
+            frames_displayed_.store(0, std::memory_order_relaxed);
+        }
+    }
+    return fps_.load(std::memory_order_relaxed);
 }
 
 void PipelineStats::reset() {
-    // TODO: set drops_ and frames_displayed_ to 0; reset per-stage averages; reset fps window
+    drops_.store(0, std::memory_order_relaxed);
+    frames_displayed_.store(0, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(fps_mutex_);
+        fps_.store(0.0, std::memory_order_relaxed);
+        fps_window_start_ = std::chrono::steady_clock::now();
+    }
+    std::lock_guard<std::mutex> lock(latency_mutex_);
+    std::fill(avg_latency_us_.begin(), avg_latency_us_.end(), 0);
 }

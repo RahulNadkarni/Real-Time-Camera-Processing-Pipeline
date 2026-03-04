@@ -67,7 +67,8 @@ private:
     mutable std::mutex latency_mutex_;
     std::vector<int64_t> avg_latency_us_;
     std::atomic<uint64_t> drops_{0};
-    std::atomic<uint64_t> frames_displayed_{0};
-    std::chrono::steady_clock::time_point fps_window_start_;
-    // TODO: add members for fps sliding window if needed
+    mutable std::atomic<uint64_t> frames_displayed_{0};
+    mutable std::chrono::steady_clock::time_point fps_window_start_;
+    mutable std::atomic<double> fps_{0.0};
+    mutable std::mutex fps_mutex_;
 };

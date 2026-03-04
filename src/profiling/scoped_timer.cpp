@@ -11,7 +11,6 @@ ScopedTimer::~ScopedTimer() {
 }
 
 int64_t ScopedTimer::elapsed_us() const {
-    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-    std::chrono::duration<int64_t, std::micro> duration = now - start_;
-    return duration.count();
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::microseconds>(now - start_).count();
 }
