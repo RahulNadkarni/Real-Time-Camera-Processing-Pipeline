@@ -41,7 +41,8 @@ int Renderer::render(const Frame& frame,
     } else {
         ss << impl_->window_title;
     }
-    cv::putText(view, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+    const cv::Scalar text_color(200, 200, 200);  // light grey (BGR)
+    cv::putText(view, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2);
     if (controller && stats) {
         for (size_t i = 0; i < StageController::kNumStages; i++) {
             ss.str("");
@@ -50,7 +51,7 @@ int Renderer::render(const Frame& frame,
                << (controller->is_enabled(i) ? "ON " : "OFF ");
             ss << stats->get_avg_latency_us(i) << " us";
             cv::putText(view, ss.str(), cv::Point(10, 60 + static_cast<int>(i + 1) * 30),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
+                        cv::FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2);
         }
     }
     cv::imshow(impl_->window_title, view);

@@ -6,6 +6,7 @@
 
 #include "pipeline/pipeline.h"
 #include "controls/config.h"
+#include "controls/stage_controller.h"
 #include <iostream>
 #include <csignal>
 #include <cstring>
@@ -13,6 +14,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <sstream>
 
 static std::atomic<bool> g_signal_received{false};
 
@@ -71,9 +73,24 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    constexpr auto kStatsInterval = std::chrono::seconds(15);
+    auto last_stats_time = std::chrono::steady_clock::now();
+
     while (!g_signal_received.load(std::memory_order_relaxed) &&
            !pipeline.is_shutdown_requested()) {
         pipeline.run_display_iteration();
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_stats_time >= kStatsInterval) {
+            last_stats_time = now;
+            PipelineStats& s = pipeline.stats();
+            std::ostringstream out;
+            out << "[stats] FPS: " << s.get_fps() << " | Drops: " << s.get_drop_count();
+            for (size_t i = 0; i < StageController::kNumStages; i++) {
+                out << " | " << StageController::stage_name(i) << ": " << s.get_avg_latency_us(i) << " us";
+            }
+            std::cout << out.str() << std::endl;
+        }
     }
 
     pipeline.stop();

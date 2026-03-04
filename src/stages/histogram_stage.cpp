@@ -1,5 +1,6 @@
 #include "histogram_stage.h"
 #include <opencv2/opencv.hpp>
+#include <algorithm>
 #include <cstring>
 
 struct HistogramStage::Impl {};
@@ -36,7 +37,8 @@ void HistogramStage::process(Frame& frame) {
         cv::line(hist_image, cv::Point(i - 1, hist_h - cvRound(r_hist.at<float>(i - 1))),
                  cv::Point(i, hist_h - cvRound(r_hist.at<float>(i))), cv::Scalar(0, 0, 255), 1);
     }
-    cv::Mat roi = clone(cv::Rect(0, 0, hist_w, hist_h));
+    int hist_x = std::max(0, frame.width - hist_w);
+    cv::Mat roi = clone(cv::Rect(hist_x, 0, hist_w, hist_h));
     hist_image.copyTo(roi);
     if (clone.isContinuous() && clone.data) {
         std::memcpy(frame.buffer.data(), clone.data, size);

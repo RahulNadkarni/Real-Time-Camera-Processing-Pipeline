@@ -1,13 +1,11 @@
 #include "scoped_timer.h"
-#include <iostream>
 
 ScopedTimer::ScopedTimer(const std::string& stage_name)
     : stage_name_(stage_name),
       start_(std::chrono::steady_clock::now()) {}
 
 ScopedTimer::~ScopedTimer() {
-    int64_t us = elapsed_us();
-    std::cout << stage_name_ << ": " << us << " us" << std::endl;
+    // Timer used only for elapsed_us(); no per-frame logging (main prints stats every 15s)
 }
 
 int64_t ScopedTimer::elapsed_us() const {
