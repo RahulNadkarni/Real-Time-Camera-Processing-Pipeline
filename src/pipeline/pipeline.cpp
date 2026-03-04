@@ -53,11 +53,18 @@ Pipeline::~Pipeline() {
     renderer_->close();
 }
 
-void Pipeline::start() {
-    auto* cap = new cv::VideoCapture(config_.camera_index);
+bool Pipeline::start() {
+    cv::VideoCapture* cap = new cv::VideoCapture(config_.camera_index);
+#if defined(__APPLE__)
     if (!cap->isOpened()) {
         delete cap;
-        return;  // TODO: throw or set error state if camera open fails
+        cap = new cv::VideoCapture(config_.camera_index, cv::CAP_AVFOUNDATION);
+    }
+#endif
+    if (!cap->isOpened()) {
+        delete cap;
+        capture_handle_ = nullptr;
+        return false;
     }
     cap->set(cv::CAP_PROP_FRAME_WIDTH, config_.width);
     cap->set(cv::CAP_PROP_FRAME_HEIGHT, config_.height);
@@ -67,7 +74,7 @@ void Pipeline::start() {
     for (size_t i = 0; i < kNumStages; i++) {
         threads_.push_back(std::thread([this, i] { run_stage(i); }));
     }
-    threads_.push_back(std::thread([this] { display_loop(); }));
+    return true;
 }
 
 void Pipeline::stop() {
@@ -134,16 +141,19 @@ void Pipeline::run_stage(size_t stage_index) {
     }
 }
 
-void Pipeline::display_loop() {
+int Pipeline::run_display_iteration() {
     constexpr int kEscKey = 27;
-    while (auto opt = queues_.back()->pop()) {
-        std::unique_ptr<Frame> frame = std::move(*opt);
-        int key = renderer_->render(*frame, stats_.get(), controller_.get());
-        controller_->handle_key(key);
-        if (key == kEscKey) {
-            shutdown_requested_.store(true, std::memory_order_relaxed);
-        }
-        pool_->release(std::move(frame));
-        stats_->record_frame_displayed();
+    auto opt = queues_.back()->pop_for(std::chrono::milliseconds(16));
+    if (!opt) {
+        return -1;
     }
+    std::unique_ptr<Frame> frame = std::move(*opt);
+    int key = renderer_->render(*frame, stats_.get(), controller_.get());
+    controller_->handle_key(key);
+    if (key == kEscKey) {
+        shutdown_requested_.store(true, std::memory_order_relaxed);
+    }
+    pool_->release(std::move(frame));
+    stats_->record_frame_displayed();
+    return key;
 }

@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <chrono>
 
 /**
  * Thread-safe FIFO queue for passing items between pipeline stages.
@@ -25,6 +26,14 @@ public:
      * Thread-safe.
      */
     std::optional<T> pop();
+
+    /**
+     * Pops and returns the front item if available within the timeout.
+     * Returns std::nullopt if timeout expires with queue empty or after shutdown.
+     * Thread-safe.
+     */
+    template <typename Rep, typename Period>
+    std::optional<T> pop_for(const std::chrono::duration<Rep, Period>& timeout);
 
     /**
      * Signals all waiting pop() callers to wake and return std::nullopt.
@@ -61,6 +70,21 @@ template <typename T>
 std::optional<T> ThreadSafeQueue<T>::pop() {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this] { return !queue_.empty() || shutdown_; });
+    if (shutdown_) {
+        return std::nullopt;
+    }
+    T item = std::move(queue_.front());
+    queue_.pop();
+    return item;
+}
+
+template <typename T>
+template <typename Rep, typename Period>
+std::optional<T> ThreadSafeQueue<T>::pop_for(const std::chrono::duration<Rep, Period>& timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!cond_.wait_for(lock, timeout, [this] { return !queue_.empty() || shutdown_; })) {
+        return std::nullopt;  // timeout, queue still empty
+    }
     if (shutdown_) {
         return std::nullopt;
     }

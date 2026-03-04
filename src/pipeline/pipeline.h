@@ -34,11 +34,11 @@ public:
     Pipeline& operator=(const Pipeline&) = delete;
 
     /**
-     * Starts the capture thread, all stage threads, and display thread.
-     * Returns after all threads have been launched. Thread-safe to call once;
-     * calling after start() or after stop() is undefined.
+     * Opens the camera, then starts the capture thread, all stage threads, and display thread.
+     * Returns true if the camera opened and all threads were started; false otherwise.
+     * Thread-safe to call once; calling after start() or after stop() is undefined.
      */
-    void start();
+    bool start();
 
     /**
      * Signals graceful shutdown: shuts down all queues (so workers unblock),
@@ -52,6 +52,14 @@ public:
      * Lock-free. Thread-safe.
      */
     bool is_shutdown_requested() const;
+
+    /**
+     * Runs one iteration of the display loop on the current thread (must be main
+     * thread on macOS for OpenCV window). Pops a frame from the last queue with
+     * timeout, renders it, releases to pool, handles key. Returns the key pressed
+     * (e.g. 27 for ESC), or -1 if no frame was displayed.
+     */
+    int run_display_iteration();
 
     /**
      * Returns the pipeline statistics aggregator for latency/fps/drops.
@@ -78,12 +86,6 @@ private:
      * push to output queue. Exits when input queue returns nullopt.
      */
     void run_stage(size_t stage_index);
-
-    /**
-     * Display loop: pop from last stage queue, render via Renderer, release
-     * frame to pool. Exits when input queue is shut down.
-     */
-    void display_loop();
 
     std::unique_ptr<FramePool> pool_;
     std::vector<std::unique_ptr<ThreadSafeQueue<std::unique_ptr<Frame>>>> queues_;

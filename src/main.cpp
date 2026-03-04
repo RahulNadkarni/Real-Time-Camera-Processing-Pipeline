@@ -63,11 +63,17 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, on_signal);
 
     Pipeline pipeline(config);
-    pipeline.start();
+    if (!pipeline.start()) {
+        std::cerr << "Error: Could not open camera (index " << config.camera_index << ").\n"
+                  << "  - Check that the camera is connected and not in use by another app.\n"
+                  << "  - On macOS: grant Camera permission in System Settings > Privacy & Security > Camera.\n"
+                  << "  - Try a different index: " << argv[0] << " --camera 1\n";
+        return 1;
+    }
 
     while (!g_signal_received.load(std::memory_order_relaxed) &&
            !pipeline.is_shutdown_requested()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        pipeline.run_display_iteration();
     }
 
     pipeline.stop();
