@@ -4,6 +4,11 @@ project(RealTimeCameraPipeline LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Faster rebuilds: use Ninja and parallel jobs by default
+if(NOT CMAKE_GENERATOR STREQUAL "Ninja" AND NOT CMAKE_BUILD_PARALLEL_LEVEL)
+  set(CMAKE_BUILD_PARALLEL_LEVEL 4 CACHE STRING "Parallel build jobs")
+endif()
+
 # OpenCV
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})

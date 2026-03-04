@@ -1,7 +1,9 @@
 #include "renderer.h"
 #include "../profiling/pipeline_stats.h"
 #include "../controls/stage_controller.h"
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
 #include <sstream>
 
 struct Renderer::Impl {

@@ -1,6 +1,7 @@
 #include "histogram_stage.h"
 #include "../profiling/scoped_timer.h"
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <algorithm>
 #include <cstring>
 
