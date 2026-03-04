@@ -52,23 +52,21 @@ private:
 
 template <typename T>
 void ThreadSafeQueue<T>::push(T item) {
-    (void)item;
-    std::lock_guard<std::mutex> lock(mutex_); 
-    queue_.push(item); 
-    cond_.notify_one(); 
-    return; 
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push(std::move(item));
+    cond_.notify_one();
 }
 
 template <typename T>
 std::optional<T> ThreadSafeQueue<T>::pop() {
-    std::unique_lock<std::mutex> lock(mutex_);  
-    cond_.wait(lock, [this] { return !queue_.empty() || shutdown_; }); 
+    std::unique_lock<std::mutex> lock(mutex_);
+    cond_.wait(lock, [this] { return !queue_.empty() || shutdown_; });
     if (shutdown_) {
         return std::nullopt;
     }
-    T item = queue_.front(); 
-    queue_.pop(); 
-    return item; 
+    T item = std::move(queue_.front());
+    queue_.pop();
+    return item;
 }
 
 template <typename T>

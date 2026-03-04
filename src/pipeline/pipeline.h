@@ -93,6 +93,8 @@ private:
 
     std::vector<std::thread> threads_;
     std::atomic<bool> shutdown_requested_{false};
+    std::atomic<uint64_t> frame_id_counter_{0};
+    Config config_;
 
     std::unique_ptr<Renderer> renderer_;
     void* capture_handle_{nullptr};  // e.g., cv::VideoCapture*; lifecycle managed here
