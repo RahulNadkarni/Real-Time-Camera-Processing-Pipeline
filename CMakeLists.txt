@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-# Threading (optional; standard library provides std::thread)
 find_package(Threads REQUIRED)
 
 # Source files

@@ -106,4 +106,4 @@ README.md
 
 ## License
 
-Use as you like; this is a portfolio/skeleton project.
+Use as you like; this is a portfolio project.
