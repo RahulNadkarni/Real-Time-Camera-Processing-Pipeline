@@ -6,10 +6,12 @@ ScopedTimer::ScopedTimer(const std::string& stage_name)
       start_(std::chrono::steady_clock::now()) {}
 
 ScopedTimer::~ScopedTimer() {
-    // TODO: compute elapsed_us(), print "stage_name: N us" to stdout (or use a logger)
+    int64_t us = elapsed_us();
+    std::cout << stage_name_ << ": " << us << " us" << std::endl;
 }
 
 int64_t ScopedTimer::elapsed_us() const {
-    // TODO: return duration in microseconds from start_ to now
-    return 0;
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    std::chrono::duration<int64_t, std::micro> duration = now - start_;
+    return duration.count();
 }
