@@ -22,11 +22,13 @@ cmake ..
 cmake --build .
 ```
 
-Run:
+Run (from the `build` directory):
 
 ```bash
 ./RealTimeCameraPipeline
 ```
+
+Or from project root: `./build/RealTimeCameraPipeline`
 
 ## Keyboard Controls
 
@@ -104,7 +106,7 @@ CMakeLists.txt
 README.md
 ```
 
-## Optimization notes 
+## Optimization notes
 
 - **Target:** 30 FPS ⇒ 33 ms per frame budget. Pipeline was stuck at ~24 FPS.
 - **Bottleneck:** Profiling showed **NoiseReduction** at ~49 ms per frame — bilateral filter at full resolution was blowing the budget.
@@ -129,6 +131,11 @@ All five processing stages run concurrently on separate threads. Per-stage profi
 
 **To achieve 30 fps:** Use an external USB webcam or camera that supports 30 fps capture (e.g. Logitech C920). The processing pipeline has sufficient headroom to sustain 30 fps given a capable capture device.
 
+## Before you publish
+
+- **Commit history:** Use a clear final commit message, e.g. `Complete Real-Time Camera Processing Pipeline v1.0 — real-time webcam pipeline with staged processing and profiling`. Squash or amend any "fix", "wip", or placeholder commits before making the repo public.
+- **Preview README:** Check that the README renders correctly on GitHub (tables, code blocks, links). The benchmarks table and bash code blocks should display properly.
+
 ## License
 
-Use as you like; this is a portfolio project.
+MIT License — see [LICENSE](LICENSE). Standard permissive license for portfolio projects.

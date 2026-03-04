@@ -1,12 +1,22 @@
+# Build
 build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
 *.o
 *.a
 *.dylib
 *.exe
+*.so
+*.dll
 RealTimeCameraPipeline
+
+# IDE / OS
 .DS_Store
-*.swp
-*~
 .idea/
 .vscode/
+xcuserdata/
 *.user
+*.swp
+*~
