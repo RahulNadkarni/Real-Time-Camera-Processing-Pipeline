@@ -2,20 +2,36 @@
 
 FramePool::FramePool(int capacity, int width, int height, int channels)
     : width_(width), height_(height), channels_(channels) {
-    // TODO: pre-allocate capacity Frames; set each frame's width/height/channels and buffer.resize(width*height*channels)
+    pool_.reserve(static_cast<size_t>(capacity));
+    for (int i = 0; i < capacity; i++) {
+        std::unique_ptr<Frame> frame = std::make_unique<Frame>();
+        frame->width = width;
+        frame->height = height;
+        frame->channels = channels;
+        frame->buffer.resize(static_cast<size_t>(width) * height * channels);
+        pool_.push_back(std::move(frame));
+    }
 }
 
 std::unique_ptr<Frame> FramePool::acquire() {
-    // TODO: lock mutex_; if pool_ has an available frame, pop and return it; else return nullptr
-    return nullptr;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (pool_.empty()) {
+        return nullptr;
+    }
+    std::unique_ptr<Frame> frame = std::move(pool_.back());
+    pool_.pop_back();
+    return frame;
 }
 
 void FramePool::release(std::unique_ptr<Frame> frame) {
-    (void)frame;
-    // TODO: lock mutex_; reset frame buffer if needed; push frame back onto pool_
+    if (!frame) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    pool_.push_back(std::move(frame));
 }
 
 size_t FramePool::available() const {
-    // TODO: lock mutex_; return pool_.size()
-    return 0;
+    std::lock_guard<std::mutex> lock(mutex_);
+    return pool_.size();
 }
