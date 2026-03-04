@@ -1,6 +1,8 @@
 #include "renderer.h"
 #include "../profiling/pipeline_stats.h"
 #include "../controls/stage_controller.h"
+#include <opencv2/opencv.hpp>
+#include <sstream>
 
 struct Renderer::Impl {
     int width = 0;
@@ -21,18 +23,38 @@ Renderer::~Renderer() {
 }
 
 void Renderer::set_window_title(const std::string& title) {
-    (void)title;
-    // TODO: store title in impl_; optionally update OpenCV window title
+    impl_->window_title = title;
 }
 
 int Renderer::render(const Frame& frame,
                      const PipelineStats* stats,
                      const StageController* controller) {
-    (void)frame;
-    (void)stats;
-    (void)controller;
-    // TODO: convert frame.buffer to cv::Mat; draw overlay (active stages + per-stage latency from stats); imshow; return waitKey(1)
-    return -1;
+    const size_t expected_size = static_cast<size_t>(frame.width) * frame.height * frame.channels;
+    if (frame.buffer.size() < expected_size) {
+        return -1;
+    }
+    cv::Mat src(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
+    cv::Mat view = src.clone();
+    std::stringstream ss;
+    if (stats) {
+        ss << impl_->window_title << " (FPS: " << stats->get_fps() << ")";
+    } else {
+        ss << impl_->window_title;
+    }
+    cv::putText(view, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+    if (controller && stats) {
+        for (size_t i = 0; i < StageController::kNumStages; i++) {
+            ss.str("");
+            ss.clear();
+            ss << StageController::stage_name(i) << ": "
+               << (controller->is_enabled(i) ? "ON " : "OFF ");
+            ss << stats->get_avg_latency_us(i) << " us";
+            cv::putText(view, ss.str(), cv::Point(10, 60 + static_cast<int>(i + 1) * 30),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
+        }
+    }
+    cv::imshow(impl_->window_title, view);
+    return cv::waitKey(1);
 }
 
 bool Renderer::is_open() const {
@@ -40,5 +62,6 @@ bool Renderer::is_open() const {
 }
 
 void Renderer::close() {
-    // TODO: set impl_->open = false; destroy OpenCV window if created
+    impl_->open.store(false, std::memory_order_relaxed);
+    cv::destroyWindow(impl_->window_title);
 }
