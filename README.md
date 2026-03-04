@@ -131,11 +131,6 @@ All five processing stages run concurrently on separate threads. Per-stage profi
 
 **To achieve 30 fps:** Use an external USB webcam or camera that supports 30 fps capture (e.g. Logitech C920). The processing pipeline has sufficient headroom to sustain 30 fps given a capable capture device.
 
-## Before you publish
-
-- **Commit history:** Use a clear final commit message, e.g. `Complete Real-Time Camera Processing Pipeline v1.0 — real-time webcam pipeline with staged processing and profiling`. Squash or amend any "fix", "wip", or placeholder commits before making the repo public.
-- **Preview README:** Check that the README renders correctly on GitHub (tables, code blocks, links). The benchmarks table and bash code blocks should display properly.
-
 ## License
 
 MIT License — see [LICENSE](LICENSE). Standard permissive license for portfolio projects.
