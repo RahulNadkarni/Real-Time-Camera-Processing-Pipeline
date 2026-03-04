@@ -135,9 +135,14 @@ void Pipeline::run_stage(size_t stage_index) {
 }
 
 void Pipeline::display_loop() {
+    constexpr int kEscKey = 27;
     while (auto opt = queues_.back()->pop()) {
         std::unique_ptr<Frame> frame = std::move(*opt);
-        renderer_->render(*frame, stats_.get(), controller_.get());
+        int key = renderer_->render(*frame, stats_.get(), controller_.get());
+        controller_->handle_key(key);
+        if (key == kEscKey) {
+            shutdown_requested_.store(true, std::memory_order_relaxed);
+        }
         pool_->release(std::move(frame));
         stats_->record_frame_displayed();
     }
