@@ -4,7 +4,6 @@
 #include "../stages/tone_mapping_stage.h"
 #include "../stages/histogram_stage.h"
 #include "../stages/edge_detection_stage.h"
-#include "../profiling/scoped_timer.h"
 #include <opencv2/videoio.hpp>
 #include <thread>
 #include <chrono>
@@ -136,9 +135,9 @@ void Pipeline::run_stage(size_t stage_index) {
     while (auto opt = queues_[stage_index]->pop()) {
         std::unique_ptr<Frame> frame = std::move(*opt);
         if (controller_->is_enabled(stage_index)) {
-            ScopedTimer timer(stages_[stage_index]->name());
-            stages_[stage_index]->process(*frame);
-            stats_->record_stage_latency_us(stage_index, timer.elapsed_us());
+            int64_t latency_us = 0;
+            stages_[stage_index]->process(*frame, &latency_us);
+            stats_->record_stage_latency_us(stage_index, latency_us);
         }
         queues_[stage_index + 1]->push(std::move(frame));
     }

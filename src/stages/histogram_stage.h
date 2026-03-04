@@ -18,7 +18,7 @@ public:
      * (e.g., small graph in corner) onto the frame. Modifies frame in-place. Blocks
      * only on computation; thread-safe if no shared mutable state.
      */
-    void process(Frame& frame) override;
+    void process(Frame& frame, int64_t* out_latency_us = nullptr) override;
 
     const char* name() const override;
 

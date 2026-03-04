@@ -75,12 +75,22 @@ int main(int argc, char* argv[]) {
 
     constexpr auto kStatsInterval = std::chrono::seconds(15);
     auto last_stats_time = std::chrono::steady_clock::now();
+    const int target_fps_cap = (config.target_fps > 0) ? config.target_fps : 30;
+    const auto frame_interval = std::chrono::microseconds(1000000 / target_fps_cap);
+    auto last_frame_time = std::chrono::steady_clock::now();
 
     while (!g_signal_received.load(std::memory_order_relaxed) &&
            !pipeline.is_shutdown_requested()) {
         pipeline.run_display_iteration();
 
         auto now = std::chrono::steady_clock::now();
+        auto elapsed = now - last_frame_time;
+        if (elapsed < frame_interval) {
+            std::this_thread::sleep_for(frame_interval - elapsed);
+        }
+        last_frame_time = std::chrono::steady_clock::now();
+
+        now = std::chrono::steady_clock::now();
         if (now - last_stats_time >= kStatsInterval) {
             last_stats_time = now;
             PipelineStats& s = pipeline.stats();

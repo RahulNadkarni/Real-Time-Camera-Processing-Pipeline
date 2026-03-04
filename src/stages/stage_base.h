@@ -14,9 +14,10 @@ public:
     /**
      * Processes the frame in-place (or produces a new frame). Called from
      * the stage's worker thread; must not block on other stages. May modify
-     * frame.buffer and metadata. Pure virtual — implement in derived classes.
+     * frame.buffer and metadata. If out_latency_us is non-null, set it to
+     * this stage's processing time in microseconds (enables accurate per-stage timing).
      */
-    virtual void process(Frame& frame) = 0;
+    virtual void process(Frame& frame, int64_t* out_latency_us = nullptr) = 0;
 
     /**
      * Human-readable name for this stage (e.g., "Debayer", "NoiseReduction").

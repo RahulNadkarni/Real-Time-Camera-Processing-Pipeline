@@ -1,4 +1,5 @@
 #include "histogram_stage.h"
+#include "../profiling/scoped_timer.h"
 #include <opencv2/opencv.hpp>
 #include <algorithm>
 #include <cstring>
@@ -9,10 +10,12 @@ HistogramStage::HistogramStage() : impl_(std::make_unique<Impl>()) {}
 
 HistogramStage::~HistogramStage() = default;
 
-void HistogramStage::process(Frame& frame) {
+void HistogramStage::process(Frame& frame, int64_t* out_latency_us) {
+    if (out_latency_us) *out_latency_us = 0;
     const size_t size = static_cast<size_t>(frame.width) * frame.height * frame.channels;
     if (frame.buffer.size() < size) return;
 
+    ScopedTimer timer(name());
     cv::Mat view(frame.height, frame.width, CV_8UC3, frame.buffer.data());
     cv::Mat clone = view.clone();
     std::vector<cv::Mat> bgr_planes;
@@ -43,6 +46,7 @@ void HistogramStage::process(Frame& frame) {
     if (clone.isContinuous() && clone.data) {
         std::memcpy(frame.buffer.data(), clone.data, size);
     }
+    if (out_latency_us) *out_latency_us = timer.elapsed_us();
 }
 
 const char* HistogramStage::name() const {

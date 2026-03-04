@@ -104,6 +104,13 @@ CMakeLists.txt
 README.md
 ```
 
+## Optimization notes 
+
+- **Target:** 30 FPS ⇒ 33 ms per frame budget. Pipeline was stuck at ~24 FPS.
+- **Bottleneck:** Profiling showed **NoiseReduction** at ~49 ms per frame — bilateral filter at full resolution was blowing the budget.
+- **Fix:** Run bilateral at **half-resolution** then upsample (4× fewer pixels), and use a **smaller kernel** (d=5, sigma 50 instead of d=9, sigma 75). Latency drops into the single-digit ms range; FPS can reach 30.
+- **Alternatives tried / available:** Reduce filter radius only; Gaussian blur to confirm bilateral was the cost; Joint Bilateral or box-filter approximation for further speed vs quality tradeoffs.
+
 ## License
 
 Use as you like; this is a portfolio project.
