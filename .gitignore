@@ -1,0 +1,12 @@
+build/
+*.o
+*.a
+*.dylib
+*.exe
+RealTimeCameraPipeline
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+*.user

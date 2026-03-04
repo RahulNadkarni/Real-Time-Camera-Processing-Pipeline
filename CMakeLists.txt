@@ -1,0 +1,54 @@
+cmake_minimum_required(VERSION 3.14)
+project(RealTimeCameraPipeline LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# OpenCV
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+# Threading (optional; standard library provides std::thread)
+find_package(Threads REQUIRED)
+
+# Source files
+set(PIPELINE_SOURCES
+    src/pipeline/pipeline.cpp
+    src/pipeline/frame_pool.cpp
+)
+set(STAGE_SOURCES
+    src/stages/debayer_stage.cpp
+    src/stages/noise_reduction_stage.cpp
+    src/stages/tone_mapping_stage.cpp
+    src/stages/histogram_stage.cpp
+    src/stages/edge_detection_stage.cpp
+)
+set(PROFILING_SOURCES
+    src/profiling/pipeline_stats.cpp
+    src/profiling/scoped_timer.cpp
+)
+set(CONTROL_SOURCES
+    src/controls/stage_controller.cpp
+)
+set(DISPLAY_SOURCES
+    src/display/renderer.cpp
+)
+
+add_executable(${PROJECT_NAME}
+    src/main.cpp
+    ${PIPELINE_SOURCES}
+    ${STAGE_SOURCES}
+    ${PROFILING_SOURCES}
+    ${CONTROL_SOURCES}
+    ${DISPLAY_SOURCES}
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${OpenCV_LIBS}
+    Threads::Threads
+)
