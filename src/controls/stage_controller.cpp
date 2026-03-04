@@ -1,17 +1,23 @@
 #include "stage_controller.h"
+#include <sstream>
 
 StageController::StageController() {
-    // TODO: set all enabled_[i] to true (or from a default)
+    for (size_t i = 0; i < kNumStages; i++) {
+        enabled_[i].store(true, std::memory_order_relaxed);
+    }
 }
 
 StageController::StageController(const bool default_enabled[kNumStages]) {
-    // TODO: copy default_enabled into enabled_[]
+    for (size_t i = 0; i < kNumStages; i++) {
+        enabled_[i].store(default_enabled[i], std::memory_order_relaxed);
+    }
 }
 
 bool StageController::is_enabled(size_t stage_index) const {
-    (void)stage_index;
-    // TODO: return enabled_[stage_index].load(std::memory_order_relaxed)
-    return true;
+    if (stage_index >= kNumStages) {
+        return false;
+    }
+    return enabled_[stage_index].load(std::memory_order_relaxed);
 }
 
 bool StageController::is_enabled(StageId stage) const {
@@ -19,8 +25,11 @@ bool StageController::is_enabled(StageId stage) const {
 }
 
 void StageController::toggle(size_t stage_index) {
-    (void)stage_index;
-    // TODO: flip enabled_[stage_index] (compare_exchange or load + store)
+    if (stage_index >= kNumStages) {
+        return;
+    }
+    bool current = enabled_[stage_index].load(std::memory_order_relaxed);
+    enabled_[stage_index].store(!current, std::memory_order_relaxed);
 }
 
 void StageController::toggle(StageId stage) {
@@ -28,24 +37,51 @@ void StageController::toggle(StageId stage) {
 }
 
 void StageController::set_enabled(size_t stage_index, bool enabled) {
-    (void)stage_index;
-    (void)enabled;
-    // TODO: enabled_[stage_index].store(enabled, std::memory_order_relaxed)
+    if (stage_index >= kNumStages) {
+        return;
+    }
+    enabled_[stage_index].store(enabled, std::memory_order_relaxed);
 }
 
 bool StageController::handle_key(int key) {
-    (void)key;
-    // TODO: map key '1'..'5' to toggle(0)..toggle(4); return true if mapped, else false
+    if (key == '1') {
+        toggle(0);
+        return true;
+    }
+    if (key == '2') {
+        toggle(1);
+        return true;
+    }
+    if (key == '3') {
+        toggle(2);
+        return true;
+    }
+    if (key == '4') {
+        toggle(3);
+        return true;
+    }
+    if (key == '5') {
+        toggle(4);
+        return true;
+    }
     return false;
 }
 
 std::string StageController::get_state_string() const {
-    // TODO: build string like "Debayer:ON NoiseReduction:ON ..." from enabled_[]
-    return "";
+    std::stringstream ss;
+    for (size_t i = 0; i < kNumStages; i++) {
+        ss << stage_name(i) << ":" << (enabled_[i].load(std::memory_order_relaxed) ? "ON" : "OFF") << " ";
+    }
+    return ss.str();
 }
 
 const char* StageController::stage_name(size_t stage_index) {
-    (void)stage_index;
-    // TODO: return "Debayer", "NoiseReduction", etc. for index 0..4
-    return "";
+    switch (stage_index) {
+        case 0: return "Debayer";
+        case 1: return "NoiseReduction";
+        case 2: return "ToneMapping";
+        case 3: return "Histogram";
+        case 4: return "EdgeDetection";
+        default: return "";
+    }
 }
