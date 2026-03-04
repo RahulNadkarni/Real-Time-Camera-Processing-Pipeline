@@ -1,6 +1,9 @@
 #pragma once
 
 #include "../pipeline/frame.h"
+#include "../stages/neural/scene_classifier_stage.h"
+#include "../stages/neural/super_resolution_stage.h"
+#include <opencv2/core.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -48,6 +51,24 @@ public:
      * Closes the window and releases OpenCV resources. Safe to call from display thread.
      */
     void close();
+
+    /**
+     * Overlay scene classifier top-k labels and confidences on the frame (e.g. top-left).
+     * Modifies frame.buffer via OpenCV draw. Call from display thread only. Non-blocking.
+     */
+    void overlaySceneLabels(Frame& frame, const SceneResult& scene_result);
+
+    /**
+     * Overlay saliency heatmap on the frame with given alpha blend. Modifies frame.buffer.
+     * Call from display thread only. Non-blocking. saliency_map is normalized 0–1, same size or resized.
+     */
+    void overlaySaliencyMap(Frame& frame, const cv::Mat& saliency_map, double alpha);
+
+    /**
+     * Overlay PSNR and SSIM metrics (e.g. for super-resolution) on the frame at position.
+     * Modifies frame.buffer. Call from display thread only. Non-blocking.
+     */
+    void overlayNeuralMetrics(Frame& frame, float psnr, float ssim, const cv::Point& position);
 
 private:
     struct Impl;

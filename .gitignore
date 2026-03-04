@@ -20,3 +20,7 @@ xcuserdata/
 *.user
 *.swp
 *~
+
+# ML models (keep directory via ml/models/.gitkeep)
+ml/models/*.onnx
+ml/models/*.pt

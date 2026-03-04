@@ -68,3 +68,25 @@ void Renderer::close() {
     impl_->open.store(false, std::memory_order_relaxed);
     cv::destroyWindow(impl_->window_title);
 }
+
+void Renderer::overlaySceneLabels(Frame& frame, const SceneResult& scene_result) {
+    // TODO: implement — build cv::Mat from frame.buffer, for each label in scene_result.top_k_labels
+    //       draw text (label, confidence) at position, write back to frame.buffer if needed
+    (void)frame;
+    (void)scene_result;
+}
+
+void Renderer::overlaySaliencyMap(Frame& frame, const cv::Mat& saliency_map, double alpha) {
+    // TODO: implement — resize saliency_map to frame size if needed, apply colormap, blend with frame
+    (void)frame;
+    (void)saliency_map;
+    (void)alpha;
+}
+
+void Renderer::overlayNeuralMetrics(Frame& frame, float psnr, float ssim, const cv::Point& position) {
+    // TODO: implement — draw "PSNR: X dB, SSIM: Y" at position on frame
+    (void)frame;
+    (void)psnr;
+    (void)ssim;
+    (void)position;
+}

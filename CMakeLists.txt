@@ -9,8 +9,8 @@ if(NOT CMAKE_GENERATOR STREQUAL "Ninja" AND NOT CMAKE_BUILD_PARALLEL_LEVEL)
   set(CMAKE_BUILD_PARALLEL_LEVEL 4 CACHE STRING "Parallel build jobs")
 endif()
 
-# OpenCV
-find_package(OpenCV REQUIRED)
+# OpenCV (with DNN module for neural stages / ONNX)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui videoio dnn)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
@@ -20,12 +20,20 @@ set(PIPELINE_SOURCES
     src/pipeline/pipeline.cpp
     src/pipeline/frame_pool.cpp
 )
+# Existing image processing stages
 set(STAGE_SOURCES
     src/stages/debayer_stage.cpp
     src/stages/noise_reduction_stage.cpp
     src/stages/tone_mapping_stage.cpp
     src/stages/histogram_stage.cpp
     src/stages/edge_detection_stage.cpp
+)
+# Neural inference stages (OpenCV DNN, ONNX) — add below existing stage files
+list(APPEND STAGE_SOURCES
+    src/stages/neural/scene_classifier_stage.cpp
+    src/stages/neural/saliency_stage.cpp
+    src/stages/neural/super_resolution_stage.cpp
+    src/stages/neural/neural_dispatcher.cpp
 )
 set(PROFILING_SOURCES
     src/profiling/pipeline_stats.cpp
