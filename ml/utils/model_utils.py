@@ -2,16 +2,17 @@
 Shared model utilities: load/save checkpoints, parameter count, inference benchmark.
 """
 
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-# TODO: add imports (torch)
+import torch
+import time
 
 
 def load_checkpoint(
     path: str,
     model: "torch.nn.Module",
     optimizer: Optional["torch.optim.Optimizer"] = None,
+    device: Optional["torch.device"] = None,
 ) -> Dict[str, Any]:
     """
     Load checkpoint from path into model (and optionally optimizer).
@@ -24,6 +25,8 @@ def load_checkpoint(
         Model to load weights into.
     optimizer : torch.optim.Optimizer, optional
         If provided and checkpoint contains optimizer state, load it.
+    device : torch.device, optional
+        Device to load tensors onto (e.g. when loading GPU checkpoint on CPU/MPS). Uses CPU if None.
 
     Returns
     -------
@@ -34,8 +37,16 @@ def load_checkpoint(
     ------------
     Modifies model (and optionally optimizer) in place.
     """
-    # TODO: implement — torch.load, model.load_state_dict; if full checkpoint, load optimizer and return
-    pass
+    map_location = device if device is not None else "cpu"
+    checkpoint = torch.load(path, map_location=map_location, weights_only=False)
+    if isinstance(checkpoint, dict) and "model" in checkpoint:
+        model.load_state_dict(checkpoint["model"], strict=True)
+        if optimizer is not None and "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+        return checkpoint
+    model.load_state_dict(checkpoint, strict=True)
+    return {}
+
 
 
 def save_checkpoint(
@@ -65,8 +76,16 @@ def save_checkpoint(
     ------------
     Writes file to disk.
     """
-    # TODO: implement — torch.save({"model": model.state_dict(), "optimizer": ..., "epoch": ..., "metrics": ...})
-    pass
+    if not path:
+        raise ValueError("save_checkpoint requires a non-empty path.")
+    state = {
+        "model": model.state_dict(),
+        "epoch": epoch,
+        "metrics": metrics,
+    }
+    if optimizer is not None:
+        state["optimizer"] = optimizer.state_dict()
+    torch.save(state, path)
 
 
 def count_parameters(model: "torch.nn.Module") -> int:
@@ -83,8 +102,7 @@ def count_parameters(model: "torch.nn.Module") -> int:
     int
         Sum of parameter counts.
     """
-    # TODO: implement — sum(p.numel() for p in model.parameters() if p.requires_grad)
-    pass
+    return sum(p.numel() for p in model.parameters() if p.requires_grad) 
 
 
 def benchmark_inference_speed(
@@ -115,6 +133,26 @@ def benchmark_inference_speed(
     float
         Average inference time in ms.
     """
-    # TODO: implement — create dummy tensor, model.to(device), warmup then torch.cuda.synchronize/mps sync,
-    #       time n_runs forwards, return mean in ms
-    pass
+    model.eval()
+    model.to(device)
+    size = input_size if len(input_size) == 4 else (1,) + tuple(input_size)
+    dummy = torch.randn(size, device=device)
+
+    with torch.no_grad():
+        for _ in range(warmup):
+            model(dummy)
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        elif device.type == "mps":
+            torch.mps.synchronize()
+
+        start = time.perf_counter()
+        for _ in range(n_runs):
+            model(dummy)
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        elif device.type == "mps":
+            torch.mps.synchronize()
+        end = time.perf_counter()
+
+    return (end - start) / n_runs * 1000.0
