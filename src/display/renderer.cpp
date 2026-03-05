@@ -70,24 +70,36 @@ void Renderer::close() {
 }
 
 void Renderer::overlaySceneLabels(Frame& frame, const SceneResult& scene_result) {
-    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
-    cv::putText(view, scene_result.top_k_labels[0].label, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
-    cv::putText(view, std::to_string(scene_result.top_k_labels[0].confidence), cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
-    frame.buffer = view.data;
+    if (!scene_result.valid || scene_result.top_k_labels.empty()) return;
+    cv::Mat view(frame.height, frame.width, CV_8UC3, frame.buffer.data());
+    const std::string& label = scene_result.top_k_labels[0].first;
+    const float confidence = scene_result.top_k_labels[0].second;
+    cv::putText(view, label, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    std::ostringstream oss;
+    oss.precision(2);
+    oss << std::fixed << confidence;
+    cv::putText(view, oss.str(), cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
 }
 
 void Renderer::overlaySaliencyMap(Frame& frame, const cv::Mat& saliency_map, double alpha) {
-    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
-    cv::Mat saliency_map_resized;
-    cv::resize(saliency_map, saliency_map_resized, cv::Size(frame.width, frame.height));
-    cv::Mat saliency_map_colored;
-    cv::applyColorMap(saliency_map_resized, saliency_map_colored, cv::COLORMAP_JET);
-    cv::addWeighted(view, 1 - alpha, saliency_map_colored, alpha, 0, view);
-    frame.buffer = view.data;
+    if (saliency_map.empty()) return;
+    cv::Mat view(frame.height, frame.width, CV_8UC3, frame.buffer.data());
+    cv::Mat saliency_resized;
+    cv::resize(saliency_map, saliency_resized, cv::Size(frame.width, frame.height));
+    if (saliency_resized.type() == CV_32FC1) {
+        cv::Mat u8;
+        saliency_resized.convertTo(u8, CV_8UC1, 255.0, 0.0);
+        saliency_resized = u8;
+    }
+    cv::Mat saliency_colored;
+    cv::applyColorMap(saliency_resized, saliency_colored, cv::COLORMAP_JET);
+    cv::addWeighted(view, 1.0 - alpha, saliency_colored, alpha, 0.0, view);
 }
 
 void Renderer::overlayNeuralMetrics(Frame& frame, float psnr, float ssim, const cv::Point& position) {
-    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
-    cv::putText(view, "PSNR: " + std::to_string(psnr) + " dB, SSIM: " + std::to_string(ssim), position, cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
-    frame.buffer = view.data;
+    cv::Mat view(frame.height, frame.width, CV_8UC3, frame.buffer.data());
+    std::ostringstream oss;
+    oss.precision(2);
+    oss << std::fixed << "PSNR: " << psnr << " dB, SSIM: " << ssim;
+    cv::putText(view, oss.str(), position, cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
 }
