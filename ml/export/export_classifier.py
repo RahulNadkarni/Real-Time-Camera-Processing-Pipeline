@@ -5,7 +5,13 @@ Includes validate_onnx to verify ONNX output matches PyTorch on a sample input.
 
 from typing import Tuple, Optional
 
-# TODO: add imports (torch, onnx, onnxruntime, config, numpy)
+import torch
+import torch.nn as nn
+import torch.onnx
+import onnxruntime
+import numpy as np
+from config import Config
+from utils import load_checkpoint
 
 
 def load_model(checkpoint_path: str):
@@ -23,7 +29,17 @@ def load_model(checkpoint_path: str):
         Model in eval mode, with weights loaded.
     """
     # TODO: implement — build same architecture as training, load state_dict
-    pass
+    model = nn.Sequential(
+        nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(inplace=True),
+        nn.MaxPool2d(kernel_size=2, stride=2),
+        nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(inplace=True),
+        nn.MaxPool2d(kernel_size=2, stride=2),
+    )
+    model.load_state_dict(torch.load(checkpoint_path))
+    model.eval()
+    return model
 
 
 def export_to_onnx(model, output_path: str, input_size: Tuple[int, int], opset_version: int = 14):
