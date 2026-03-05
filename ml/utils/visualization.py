@@ -2,9 +2,11 @@
 Shared visualization: training curves and overlays on frames (for C++ reference or Python preview).
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
-# TODO: add imports (matplotlib, numpy, cv2 if needed)
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def plot_training_curves(
@@ -29,10 +31,18 @@ def plot_training_curves(
 
     Side effects
     ------------
-    Saves figure to disk.
+    Saves figure to disk. Creates and closes a new figure (does not affect global pyplot state).
     """
-    # TODO: implement — matplotlib plot, x=epoch, legend, savefig
-    pass
+    fig, ax = plt.subplots()
+    epochs = range(len(train_losses))
+    ax.plot(epochs, train_losses, label="Train Loss")
+    ax.plot(epochs, val_losses, label="Validation Loss")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.set_title(title)
+    ax.legend()
+    fig.savefig(save_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
 
 
 def overlay_label_on_frame(
@@ -60,8 +70,8 @@ def overlay_label_on_frame(
     np.ndarray
         Frame with overlay (may be same as input if in-place).
     """
-    # TODO: implement — cv2.putText or PIL; optional: draw rectangle background for readability
-    pass
+    cv2.putText(frame, f"{label}: {confidence:.2f}", position, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    return frame
 
 
 def overlay_saliency_on_frame(
@@ -84,10 +94,19 @@ def overlay_saliency_on_frame(
     Returns
     -------
     np.ndarray
-        Frame with saliency overlay.
+        Frame with saliency overlay (modified in place).
     """
-    # TODO: implement — resize saliency to frame size if needed, apply colormap, cv2.addWeighted
-    pass
+    h, w = frame.shape[:2]
+    sm = np.squeeze(saliency_map)
+    if sm.ndim != 2:
+        raise ValueError("saliency_map must be 2D (H, W).")
+    sm = cv2.resize(sm, (w, h))
+    
+    if np.issubdtype(sm.dtype, np.floating):
+        sm = (np.clip(sm, 0.0, 1.0) * 255).astype(np.uint8)
+    heatmap_bgr = cv2.applyColorMap(sm, cv2.COLORMAP_JET)
+    cv2.addWeighted(frame, 1 - alpha, heatmap_bgr, alpha, 0, frame)
+    return frame
 
 
 def overlay_metrics_on_frame(
@@ -115,5 +134,5 @@ def overlay_metrics_on_frame(
     np.ndarray
         Frame with metrics overlay.
     """
-    # TODO: implement — cv2.putText for "PSNR: X dB, SSIM: Y"
-    pass
+    cv2.putText(frame, f"PSNR: {psnr:.2f} dB, SSIM: {ssim:.2f}", position, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    return frame
