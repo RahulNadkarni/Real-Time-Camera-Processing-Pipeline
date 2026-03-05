@@ -5,8 +5,9 @@ Shared dataset utilities: download CIFAR-10 and DIV2K, transforms, and dataloade
 from pathlib import Path
 from typing import Tuple, Optional
 
-# TODO: add imports (torchvision, torch, PIL)
-
+import torchvision 
+import torch 
+import PIL 
 
 def download_cifar10(save_path: str) -> Path:
     """
@@ -26,8 +27,7 @@ def download_cifar10(save_path: str) -> Path:
     ------------
     Downloads and extracts CIFAR-10 to save_path.
     """
-    # TODO: implement — torchvision.datasets.CIFAR10(root=save_path, download=True)
-    pass
+    return torchvision.datasets.CIFAR10(root=save_path, download_cifar10 = True) 
 
 
 def download_div2k(save_path: str) -> Path:
@@ -48,8 +48,7 @@ def download_div2k(save_path: str) -> Path:
     ------------
     May download from DIV2K URL and extract (or provide instructions if manual download).
     """
-    # TODO: implement — wget/requests to DIV2K or manual instructions; extract if archive
-    pass
+    return torchvision.datasets.DIV2K(root=save_path, download_div2k = True) 
 
 
 def get_transforms(
@@ -70,8 +69,7 @@ def get_transforms(
     Tuple of (train_transform, val_transform).
     train_transform can include augmentation (random crop, flip); val_transform is deterministic.
     """
-    # TODO: implement — Resize(input_size), ToTensor(), Normalize(mean, std) per mode
-    pass
+    return (torchvision.transforms.Resize(input_size), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
 
 
 def create_dataloaders(
@@ -99,5 +97,4 @@ def create_dataloaders(
     torch.utils.data.DataLoader
         DataLoader instance.
     """
-    # TODO: implement — DataLoader(dataset, batch_size, shuffle=train, num_workers, drop_last=train)
-    pass
+    return torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = train, num_workers = num_workers, drop_last = train)
