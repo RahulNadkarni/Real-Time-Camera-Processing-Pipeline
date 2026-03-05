@@ -70,23 +70,24 @@ void Renderer::close() {
 }
 
 void Renderer::overlaySceneLabels(Frame& frame, const SceneResult& scene_result) {
-    // TODO: implement — build cv::Mat from frame.buffer, for each label in scene_result.top_k_labels
-    //       draw text (label, confidence) at position, write back to frame.buffer if needed
-    (void)frame;
-    (void)scene_result;
+    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
+    cv::putText(view, scene_result.top_k_labels[0].label, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    cv::putText(view, std::to_string(scene_result.top_k_labels[0].confidence), cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    frame.buffer = view.data;
 }
 
 void Renderer::overlaySaliencyMap(Frame& frame, const cv::Mat& saliency_map, double alpha) {
-    // TODO: implement — resize saliency_map to frame size if needed, apply colormap, blend with frame
-    (void)frame;
-    (void)saliency_map;
-    (void)alpha;
+    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
+    cv::Mat saliency_map_resized;
+    cv::resize(saliency_map, saliency_map_resized, cv::Size(frame.width, frame.height));
+    cv::Mat saliency_map_colored;
+    cv::applyColorMap(saliency_map_resized, saliency_map_colored, cv::COLORMAP_JET);
+    cv::addWeighted(view, 1 - alpha, saliency_map_colored, alpha, 0, view);
+    frame.buffer = view.data;
 }
 
 void Renderer::overlayNeuralMetrics(Frame& frame, float psnr, float ssim, const cv::Point& position) {
-    // TODO: implement — draw "PSNR: X dB, SSIM: Y" at position on frame
-    (void)frame;
-    (void)psnr;
-    (void)ssim;
-    (void)position;
+    cv::Mat view = cv::Mat(frame.height, frame.width, CV_8UC3, const_cast<uint8_t*>(frame.buffer.data()));
+    cv::putText(view, "PSNR: " + std::to_string(psnr) + " dB, SSIM: " + std::to_string(ssim), position, cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    frame.buffer = view.data;
 }
