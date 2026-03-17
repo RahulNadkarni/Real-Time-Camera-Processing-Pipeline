@@ -19,17 +19,8 @@ void DebayerStage::process(Frame& frame, int64_t* out_latency_us) {
     ScopedTimer timer(name());
 
     if (frame.channels == 3) {
-        // Webcam is already BGR; run demosaic path anyway so timing reflects real cost.
-        // Synthetic Bayer from green channel -> demosaic -> BGR (shows ~8–15ms at full res).
-        cv::Mat bgr(frame.height, frame.width, CV_8UC3, frame.buffer.data());
-        std::vector<cv::Mat> planes(3);
-        cv::split(bgr, planes);
-        cv::Mat bayer = planes[1];  // green as fake Bayer plane
-        cv::Mat dst;
-        cv::cvtColor(bayer, dst, cv::COLOR_BayerBG2BGR);
-        if (dst.isContinuous() && dst.data) {
-            std::memcpy(frame.buffer.data(), dst.data, size);
-        }
+        // Webcam is already BGR; pass through unchanged. (Demosaic only for raw Bayer input.)
+        (void)frame;
     } else {
         cv::Mat src(frame.height, frame.width, CV_8UC1, frame.buffer.data());
         cv::Mat dst(frame.height, frame.width, CV_8UC3);

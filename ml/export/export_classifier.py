@@ -36,7 +36,7 @@ def load_model(checkpoint_path: str):
     torch.nn.Module
         Model in eval mode, with weights loaded.
     """
-    num_classes = len(Config.classifier_class_names)
+    num_classes = len(Config().classifier_class_names)
     model = build_model(num_classes=num_classes, pretrained=False)
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     if isinstance(checkpoint, dict) and "model" in checkpoint:

@@ -19,7 +19,11 @@ SuperResolutionStage::SuperResolutionStage() : impl_(std::make_unique<Impl>()) {
 SuperResolutionStage::~SuperResolutionStage() = default;
 
 bool SuperResolutionStage::loadModel(const std::string& path) {
-    impl_->net = cv::dnn::readNetFromONNX(path);
+    try {
+        impl_->net = cv::dnn::readNetFromONNX(path);
+    } catch (const cv::Exception&) {
+        return false;
+    }
     return !impl_->net.empty();
 }
 
@@ -33,7 +37,7 @@ cv::Mat SuperResolutionStage::preprocess(const cv::Mat& frame) {
 }
 
 void SuperResolutionStage::runInference(const cv::Mat& frame) {
-    if (frame.empty()) return;
+    if (frame.empty() || impl_->net.empty()) return;
     cv::Mat blob = preprocess(frame);
     impl_->net.setInput(blob);
     cv::Mat output = impl_->net.forward();

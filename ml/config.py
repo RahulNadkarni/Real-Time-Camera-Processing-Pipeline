@@ -27,8 +27,8 @@ class Config:
     # Training hyperparameters (shared defaults; override per script)
     learning_rate: float = 1e-3
     batch_size: int = 32
-    epochs: int = 30
-    num_workers: int = 4
+    epochs: int = 3
+    num_workers: int = 0
 
     # Dataset paths
     cifar10_path: str = "data/cifar10"

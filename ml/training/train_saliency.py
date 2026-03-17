@@ -216,6 +216,7 @@ def compute_nss(
 
 def main():
     """Main training loop: load SALICON-style data, build U-Net, train with wandb logging."""
+    wandb.init(project="camera-pipeline", config={})  # no-op when WANDB_MODE=disabled
     cfg = Config()
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     train_loader, val_loader = load_salicon_data(

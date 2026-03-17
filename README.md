@@ -1,12 +1,19 @@
 # Real-Time Camera Processing Pipeline
 
-A multi-threaded image processing pipeline that simulates a camera capture stack: capture from a webcam, run a configurable chain of stages (debayer, noise reduction, tone mapping, histogram, edge detection), and display the result with per-stage latency and keyboard toggles.
+A multi-threaded image processing pipeline that simulates a camera capture stack: capture from a webcam, run a configurable chain of stages (debayer, noise reduction, tone mapping, histogram, edge detection), plus **neural inference stages** (scene classification, saliency, super-resolution), and display the result with per-stage latency and keyboard toggles.
+
+## Features
+
+- **Classic image processing:** Debayer, noise reduction, tone mapping, histogram, edge detection
+- **Neural stages:** Scene classifier, saliency heatmap, super-resolution (all run asynchronously on a background thread)
+- **Overlays:** Scene labels, saliency heatmap blend, PSNR/SSIM metrics
 
 ## Dependencies
 
 - **C++17** compiler (GCC 7+, Clang 5+, MSVC 2017+)
 - **CMake** 3.14+
-- **OpenCV** 4.x (with `videoio` and `highgui` for webcam and display)
+- **OpenCV** 4.x with `dnn` module (for ONNX inference)
+- **Python 3.8+** with PyTorch (for training models — optional)
 
 ### Install OpenCV (examples)
 
@@ -22,13 +29,65 @@ cmake ..
 cmake --build .
 ```
 
-Run (from the `build` directory):
+## Run
+
+**Quick start** (builds if needed and runs):
+
+```bash
+./run.sh
+```
+
+Or manually from the `build` directory:
 
 ```bash
 ./RealTimeCameraPipeline
 ```
 
 Or from project root: `./build/RealTimeCameraPipeline`
+
+## Neural Stages (Optional)
+
+The pipeline includes three neural inference stages that run asynchronously:
+- **Scene Classifier:** Displays top-k scene/object labels (ImageNet classes)
+- **Saliency:** Overlays a heatmap showing where the model thinks you'll look
+- **Super-Resolution:** Computes PSNR/SSIM quality metrics
+
+### Quick Start (without models)
+
+The pipeline works fine without trained models — neural overlays simply won't appear. This is the default behavior.
+
+### Training and Exporting Models
+
+To enable neural overlays, train and export ONNX models:
+
+```bash
+cd ml
+
+# 1. Install Python dependencies
+pip install torch torchvision torchaudio opencv-python pillow tqdm
+
+# 2. Prepare data (see ml/DATA.md for real datasets or use synthetic)
+python scripts/create_minimal_data.py  # Creates synthetic data for testing
+
+# 3. Train models (disable wandb if not logged in)
+WANDB_MODE=disabled python training/train_classifier.py --epochs 5
+WANDB_MODE=disabled python training/train_saliency.py --epochs 5
+WANDB_MODE=disabled python training/train_superres.py --epochs 5
+
+# 4. Export to ONNX
+python export/export_classifier.py
+python export/export_saliency.py
+python export/export_superres.py
+```
+
+Models are saved to `ml/models/` and the C++ pipeline automatically loads them on startup.
+
+### Expected ONNX Paths
+
+The C++ code looks for models at:
+- `ml/models/scene_classifier.onnx`
+- `ml/models/saliency.onnx`
+- `ml/models/superres.onnx`
 
 ## Keyboard Controls
 
@@ -98,10 +157,18 @@ Or from project root: `./build/RealTimeCameraPipeline`
 src/
   pipeline/       frame, thread_safe_queue, frame_pool, pipeline
   stages/         stage_base, debayer, noise_reduction, tone_mapping, histogram, edge_detection
+  stages/neural/  scene_classifier, saliency, super_resolution, neural_dispatcher
   profiling/      scoped_timer, pipeline_stats
   controls/       config, stage_controller
   display/        renderer
   main.cpp
+ml/
+  training/       train_classifier.py, train_saliency.py, train_superres.py
+  export/         export_classifier.py, export_saliency.py, export_superres.py
+  evaluation/     eval_classifier.py, eval_saliency.py, eval_superres.py
+  utils/          dataset_utils.py, model_utils.py, visualization.py
+  models/         (ONNX models saved here)
+  data/           (training data — not tracked in git)
 CMakeLists.txt
 README.md
 ```

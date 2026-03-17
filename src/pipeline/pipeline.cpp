@@ -40,6 +40,7 @@ Pipeline::Pipeline(const Config& config) : config_(config) {
     controller_ = std::make_unique<StageController>(default_enabled);
 
     renderer_ = std::make_unique<Renderer>(config.width, config.height);
+    neural_dispatcher_ = std::make_unique<NeuralDispatcher>();
     capture_handle_ = nullptr;
     shutdown_requested_.store(false, std::memory_order_relaxed);
 }
@@ -74,11 +75,22 @@ bool Pipeline::start() {
     for (size_t i = 0; i < kNumStages; i++) {
         threads_.push_back(std::thread([this, i] { run_stage(i); }));
     }
+
+    // Start neural dispatcher (loads ONNX models and starts background thread)
+    if (neural_dispatcher_) {
+        neural_dispatcher_->start();
+    }
     return true;
 }
 
 void Pipeline::stop() {
     shutdown_requested_.store(true, std::memory_order_relaxed);
+
+    // Stop neural dispatcher first
+    if (neural_dispatcher_) {
+        neural_dispatcher_->stop();
+    }
+
     for (auto& queue : queues_) {
         queue->shutdown();
     }
@@ -123,6 +135,12 @@ void Pipeline::capture_loop() {
         }
         frame->timestamp = std::chrono::steady_clock::now();
         frame->frame_id = frame_id_counter_.fetch_add(1, std::memory_order_relaxed);
+
+        // Submit frame to neural dispatcher for async inference (copies the frame)
+        if (neural_dispatcher_) {
+            neural_dispatcher_->submitFrame(*frame);
+        }
+
         queues_[0]->push(std::move(frame));
         std::this_thread::sleep_for(frame_interval);
     }
@@ -150,6 +168,29 @@ int Pipeline::run_display_iteration() {
         return -1;
     }
     std::unique_ptr<Frame> frame = std::move(*opt);
+
+    // Overlay neural results if available
+    if (neural_dispatcher_) {
+        // Scene classifier overlay (top-left)
+        SceneResult scene = neural_dispatcher_->getSceneResult();
+        if (scene.valid) {
+            renderer_->overlaySceneLabels(*frame, scene);
+        }
+
+        // Saliency heatmap overlay (blended)
+        cv::Mat saliency = neural_dispatcher_->getSaliencyResult();
+        if (!saliency.empty()) {
+            renderer_->overlaySaliencyMap(*frame, saliency, 0.12);
+        }
+
+        // Super-resolution metrics overlay (bottom-left)
+        SuperResResult superres = neural_dispatcher_->getSuperResResult();
+        if (superres.valid) {
+            renderer_->overlayNeuralMetrics(*frame, superres.psnr_db, superres.ssim,
+                                            cv::Point(10, frame->height - 20));
+        }
+    }
+
     int key = renderer_->render(*frame, stats_.get(), controller_.get());
     controller_->handle_key(key);
     if (key == kEscKey) {

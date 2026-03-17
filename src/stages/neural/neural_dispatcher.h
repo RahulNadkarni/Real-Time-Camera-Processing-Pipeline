@@ -3,7 +3,7 @@
 #include "scene_classifier_stage.h"
 #include "saliency_stage.h"
 #include "super_resolution_stage.h"
-#include "pipeline/frame.h"
+#include "../../pipeline/frame.h"
 #include <chrono>
 #include <memory>
 #include <thread>

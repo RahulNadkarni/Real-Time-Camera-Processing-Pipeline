@@ -176,6 +176,7 @@ def _save_checkpoint(
 
 def main():
     """Main training loop: load data, build model, train for N epochs with wandb logging."""
+    wandb.init(project="camera-pipeline", config={})  # no-op when WANDB_MODE=disabled
     config = Config()
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     num_classes = len(config.classifier_class_names)

@@ -189,6 +189,7 @@ def compute_ssim(pred: torch.Tensor, target: torch.Tensor, max_val: float = 1.0)
 
 def main():
     """Main training loop: load DIV2K, build SRCNN (or ESRGAN-tiny), train with wandb (PSNR, SSIM)."""
+    wandb.init(project="camera-pipeline", config={})  # no-op when WANDB_MODE=disabled
     cfg = Config()
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     train_loader, val_loader = load_div2k_data(

@@ -12,6 +12,12 @@ Makefile
 *.dll
 RealTimeCameraPipeline
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
 # IDE / OS
 .DS_Store
 .idea/
@@ -20,6 +26,9 @@ xcuserdata/
 *.user
 *.swp
 *~
+
+# ML data (datasets — do not commit)
+ml/data/
 
 # ML models (keep directory via ml/models/.gitkeep)
 ml/models/*.onnx
