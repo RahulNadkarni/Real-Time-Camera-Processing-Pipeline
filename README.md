@@ -46,51 +46,7 @@ Or manually from the `build` directory:
 ```
 
 Or from project root: `./build/RealTimeCameraPipeline`
-
-## Neural Stages (Optional)
-
-The pipeline includes three neural inference stages that run asynchronously:
-- **Scene Classifier:** Displays top-k scene/object labels (ImageNet classes)
-- **Saliency:** Overlays a heatmap showing where the model thinks you'll look
-- **Super-Resolution:** Computes PSNR/SSIM quality metrics
-
-### Quick Start (without models)
-
-The pipeline works fine without trained models — neural overlays simply won't appear. This is the default behavior.
-
-### Training and Exporting Models
-
-To enable neural overlays, train and export ONNX models:
-
-```bash
-cd ml
-
-# 1. Install Python dependencies
-pip install torch torchvision torchaudio opencv-python pillow tqdm
-
-# 2. Prepare data (see ml/DATA.md for real datasets or use synthetic)
-python scripts/create_minimal_data.py  # Creates synthetic data for testing
-
-# 3. Train models (disable wandb if not logged in)
-WANDB_MODE=disabled python training/train_classifier.py --epochs 5
-WANDB_MODE=disabled python training/train_saliency.py --epochs 5
-WANDB_MODE=disabled python training/train_superres.py --epochs 5
-
-# 4. Export to ONNX
-python export/export_classifier.py
-python export/export_saliency.py
-python export/export_superres.py
-```
-
-Models are saved to `ml/models/` and the C++ pipeline automatically loads them on startup.
-
-### Expected ONNX Paths
-
-The C++ code looks for models at:
-- `ml/models/scene_classifier.onnx`
-- `ml/models/saliency.onnx`
-- `ml/models/superres.onnx`
-
+### Quick Start 
 ## Keyboard Controls
 
 | Key | Action |
