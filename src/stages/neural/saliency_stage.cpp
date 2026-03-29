@@ -1,3 +1,12 @@
+/**
+ * @file saliency_stage.cpp
+ * @brief Saliency ONNX stage: preprocess to fixed input size, forward, heatmap resize, cache clone.
+ *
+ * Implements `SaliencyStage` methods: model load, `preprocess`/`postprocess` for U-Net output layout,
+ * `runInference` updating a float heatmap under mutex, `getCachedResult` cloning for the display
+ * thread, and a minimal `process` override. Used only from `NeuralDispatcher`, not classical queues.
+ */
+
 #include "saliency_stage.h"
 #include "../../controls/neural_config.h"
 #include <opencv2/dnn.hpp>
@@ -9,7 +18,7 @@ const float kMean[] = {0.485f, 0.456f, 0.406f};
 const float kStd[]  = {0.229f, 0.224f, 0.225f};
 const int kSaliencyH = NeuralConfig::kSaliencyInputHeight;
 const int kSaliencyW = NeuralConfig::kSaliencyInputWidth;
-}  // namespace
+}
 
 struct SaliencyStage::Impl {
     cv::dnn::Net net;
@@ -22,6 +31,9 @@ SaliencyStage::SaliencyStage() : impl_(std::make_unique<Impl>()) {}
 
 SaliencyStage::~SaliencyStage() = default;
 
+/**
+ * @brief ONNX load with OpenCV exception → false pattern (matches other neural stages).
+ */
 bool SaliencyStage::loadModel(const std::string& path) {
     try {
         impl_->net = cv::dnn::readNetFromONNX(path);
@@ -31,6 +43,9 @@ bool SaliencyStage::loadModel(const std::string& path) {
     return !impl_->net.empty();
 }
 
+/**
+ * @brief ImageNet-normalized NCHW blob for saliency input resolution.
+ */
 cv::Mat SaliencyStage::preprocess(const cv::Mat& frame) {
     cv::Mat resized;
     cv::resize(frame, resized, cv::Size(kSaliencyW, kSaliencyH), 0, 0, cv::INTER_LINEAR);
@@ -45,6 +60,9 @@ cv::Mat SaliencyStage::preprocess(const cv::Mat& frame) {
     return blob;
 }
 
+/**
+ * @brief Assumes planar 1×H×W saliency map in first `kSaliencyH*kSaliencyW` floats.
+ */
 cv::Mat SaliencyStage::postprocess(const cv::Mat& output_blob, const cv::Size& original_size) {
     // Output shape: (1, 1, kSaliencyH, kSaliencyW), values in [0,1] from sigmoid
     if (output_blob.empty() || output_blob.type() != CV_32F) return cv::Mat();
@@ -60,6 +78,9 @@ cv::Mat SaliencyStage::postprocess(const cv::Mat& output_blob, const cv::Size& o
     return heatmap_resized;  // already CV_32FC1, [0,1]
 }
 
+/**
+ * @brief Runs forward + heatmap cache clone under mutex.
+ */
 void SaliencyStage::runInference(const cv::Mat& frame) {
     if (frame.empty() || impl_->net.empty()) return;
     cv::Mat blob = preprocess(frame);
@@ -74,12 +95,18 @@ void SaliencyStage::runInference(const cv::Mat& frame) {
     }
 }
 
+/**
+ * @brief Placeholder — dispatcher owns real work; counter reserved for future adaptive scheduling.
+ */
 void SaliencyStage::process(Frame& frame, int64_t* out_latency_us) {
     if (out_latency_us) *out_latency_us = 0;
     impl_->frame_count++;
     (void)frame;
 }
 
+/**
+ * @brief Clone under lock — isolates buffer from concurrent writer overwriting Mat header/data.
+ */
 cv::Mat SaliencyStage::getCachedResult() {
     std::lock_guard<std::mutex> lock(result_mutex_);
     if (!result_ready_ || impl_->cached_heatmap.empty()) return cv::Mat();

@@ -7,18 +7,21 @@
 #include <utility>
 #include <string>
 
-/** Single prediction: class label and confidence in [0,1]. */
+/**
+ * @struct SceneResult
+ * @brief Serializable HUD payload: top-k string labels with softmax probabilities.
+ */
 struct SceneResult {
     std::vector<std::pair<std::string, float>> top_k_labels;
     bool valid{false};
 };
 
 /**
- * Neural stage that runs the scene classifier ONNX model (MobileNetV3 / CIFAR-10).
- * Loads scene_classifier.onnx via cv::dnn::readNetFromONNX. Runs inference every
- * 15 frames and caches the last result; process() overrides base to pass frame
- * through and optionally trigger inference or attach cached result. All inference
- * is intended to be run from NeuralDispatcher so the pipeline never blocks.
+ * @class SceneClassifierStage
+ * @brief CIFAR-10 / MobileNet-style classifier exported as ONNX for `cv::dnn`.
+ *
+ * Project role: async label overlay; training/export lives under `ml/`. Classical `process` is a
+ * no-op because inference is dispatcher-driven only.
  */
 class SceneClassifierStage : public NeuralStageBase {
 public:
@@ -26,39 +29,35 @@ public:
     ~SceneClassifierStage() override;
 
     /**
-     * Load ONNX model from path. Blocks on I/O and net load. Thread-safe only if
-     * not called concurrently with runInference or getCachedResult.
+     * @brief Reads ONNX; empty net on failure so `runInference` early-exits.
      */
     bool loadModel(const std::string& path) override;
 
     /**
-     * Resize frame to 224x224 and normalize for the classifier. Does not block.
-     * Returns preprocessed blob (1x3x224x224). Const ref input not modified.
+     * @brief Resize + `blobFromImage` + per-channel ImageNet mean/std normalization manually.
+     *
+     * Why manual norm after blobFromImage: matches PyTorch export expectations precisely; alternative
+     * is embedding normalization in ONNX graph (fewer lines here, more export complexity).
      */
     cv::Mat preprocess(const cv::Mat& frame);
 
     /**
-     * Run classifier forward pass on the given frame; updates cached result with
-     * top-k labels and confidences. Blocks on inference. Call from dispatcher only.
+     * @brief Forward net, softmax logits, map indices to `kClassNames`, store `SceneResult` under mutex.
      */
     void runInference(const cv::Mat& frame) override;
 
     /**
-     * Extract top-k class indices and scores from the network output blob.
-     * Does not block. Returns pairs of (index or label, score) for caller to map to names.
+     * @brief Numerically stable softmax + `partial_sort` for top-k (faster than full sort).
      */
     std::vector<std::pair<int, float>> getTopK(const cv::Mat& output_blob, int k);
 
     /**
-     * Override StageBase: process frame in-place. Runs inference every 15 frames
-     * (or delegates to dispatcher) and caches result; does not block pipeline.
-     * May set out_latency_us to 0 when only reading cache.
+     * @brief `StageBase` hook: no buffer mutation — HUD uses `getCachedResult` from display thread.
      */
     void process(Frame& frame, int64_t* out_latency_us = nullptr) override;
 
     /**
-     * Return the last cached scene result (top-3 labels + confidences). Non-blocking;
-     * reads under result_mutex_. Thread-safe.
+     * @brief Returns copy of last result (mutex); empty if never succeeded.
      */
     SceneResult getCachedResult();
 

@@ -11,7 +11,7 @@
 namespace {
 constexpr size_t kNumStages = StageController::kNumStages;
 constexpr int kChannels = 3;
-}  // namespace
+}
 
 Pipeline::Pipeline(const Config& config) : config_(config) {
     const int pool_capacity = static_cast<int>(config.queue_max_size * (kNumStages + 2));
@@ -19,7 +19,7 @@ Pipeline::Pipeline(const Config& config) : config_(config) {
 
     queues_.resize(kNumStages + 1);
     for (size_t i = 0; i < queues_.size(); i++) {
-        queues_[i] = std::make_unique<ThreadSafeQueue<std::unique_ptr<Frame>>>();
+        queues_[i] = std::make_unique<ThreadSafeQueue<std::unique_ptr<Frame>>>(config.queue_max_size);
     }
 
     stages_.push_back(std::make_unique<DebayerStage>());
@@ -40,7 +40,6 @@ Pipeline::Pipeline(const Config& config) : config_(config) {
     controller_ = std::make_unique<StageController>(default_enabled);
 
     renderer_ = std::make_unique<Renderer>(config.width, config.height);
-    neural_dispatcher_ = std::make_unique<NeuralDispatcher>();
     capture_handle_ = nullptr;
     shutdown_requested_.store(false, std::memory_order_relaxed);
 }
@@ -75,22 +74,11 @@ bool Pipeline::start() {
     for (size_t i = 0; i < kNumStages; i++) {
         threads_.push_back(std::thread([this, i] { run_stage(i); }));
     }
-
-    // Start neural dispatcher (loads ONNX models and starts background thread)
-    if (neural_dispatcher_) {
-        neural_dispatcher_->start();
-    }
     return true;
 }
 
 void Pipeline::stop() {
     shutdown_requested_.store(true, std::memory_order_relaxed);
-
-    // Stop neural dispatcher first
-    if (neural_dispatcher_) {
-        neural_dispatcher_->stop();
-    }
-
     for (auto& queue : queues_) {
         queue->shutdown();
     }
@@ -116,40 +104,35 @@ StageController& Pipeline::controller() {
 
 void Pipeline::capture_loop() {
     auto* cap = static_cast<cv::VideoCapture*>(capture_handle_);
-    if (!cap || !cap->isOpened()) {
-        return;
-    }
-    const int target_fps = config_.target_fps > 0 ? config_.target_fps : 30;
-    const auto frame_interval = std::chrono::milliseconds(1000 / target_fps);
+    if (!cap || !cap->isOpened()) return;
 
     while (!is_shutdown_requested()) {
         std::unique_ptr<Frame> frame = pool_->acquire();
         if (!frame) {
+            stats_->record_drop();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
+
         cv::Mat view(frame->height, frame->width, CV_8UC3, frame->buffer.data());
         if (!cap->read(view)) {
             pool_->release(std::move(frame));
             continue;
         }
+
         frame->timestamp = std::chrono::steady_clock::now();
         frame->frame_id = frame_id_counter_.fetch_add(1, std::memory_order_relaxed);
 
-        // Submit frame to neural dispatcher for async inference (copies the frame)
-        if (neural_dispatcher_) {
-            neural_dispatcher_->submitFrame(*frame);
+        if (!queues_[0]->push(frame)) {
+            stats_->record_drop();
+            pool_->release(std::move(frame));
         }
-
-        queues_[0]->push(std::move(frame));
-        std::this_thread::sleep_for(frame_interval);
     }
 }
 
 void Pipeline::run_stage(size_t stage_index) {
-    if (stage_index >= kNumStages || stage_index + 1 >= queues_.size()) {
-        return;
-    }
+    if (stage_index >= kNumStages || stage_index + 1 >= queues_.size()) return;
+
     while (auto opt = queues_[stage_index]->pop()) {
         std::unique_ptr<Frame> frame = std::move(*opt);
         if (controller_->is_enabled(stage_index)) {
@@ -157,45 +140,36 @@ void Pipeline::run_stage(size_t stage_index) {
             stages_[stage_index]->process(*frame, &latency_us);
             stats_->record_stage_latency_us(stage_index, latency_us);
         }
-        queues_[stage_index + 1]->push(std::move(frame));
+        if (!queues_[stage_index + 1]->push(frame)) {
+            stats_->record_drop();
+            pool_->release(std::move(frame));
+        }
     }
 }
 
 int Pipeline::run_display_iteration() {
     constexpr int kEscKey = 27;
     auto opt = queues_.back()->pop_for(std::chrono::milliseconds(16));
-    if (!opt) {
-        return -1;
-    }
+    if (!opt) return -1;
+
     std::unique_ptr<Frame> frame = std::move(*opt);
 
-    // Overlay neural results if available
-    if (neural_dispatcher_) {
-        // Scene classifier overlay (top-left)
-        SceneResult scene = neural_dispatcher_->getSceneResult();
-        if (scene.valid) {
-            renderer_->overlaySceneLabels(*frame, scene);
-        }
-
-        // Saliency heatmap overlay (blended)
-        cv::Mat saliency = neural_dispatcher_->getSaliencyResult();
-        if (!saliency.empty()) {
-            renderer_->overlaySaliencyMap(*frame, saliency, 0.12);
-        }
-
-        // Super-resolution metrics overlay (bottom-left)
-        SuperResResult superres = neural_dispatcher_->getSuperResResult();
-        if (superres.valid) {
-            renderer_->overlayNeuralMetrics(*frame, superres.psnr_db, superres.ssim,
-                                            cv::Point(10, frame->height - 20));
-        }
+    while (auto newer = queues_.back()->try_pop()) {
+        pool_->release(std::move(frame));
+        frame = std::move(*newer);
+        stats_->record_drop();
     }
+
+    const auto e2e_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - frame->timestamp).count();
+    stats_->record_e2e_latency_us(e2e_us);
 
     int key = renderer_->render(*frame, stats_.get(), controller_.get());
     controller_->handle_key(key);
     if (key == kEscKey) {
         shutdown_requested_.store(true, std::memory_order_relaxed);
     }
+
     pool_->release(std::move(frame));
     stats_->record_frame_displayed();
     return key;

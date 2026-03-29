@@ -1,3 +1,13 @@
+/**
+ * @file scene_classifier_stage.cpp
+ * @brief ONNX scene classifier: `cv::dnn` load, ImageNet-style preprocess, softmax top-k, CIFAR-10 labels.
+ *
+ * Implements `SceneClassifierStage`: `loadModel`, `preprocess` (resize + blob + mean/std), `runInference`
+ * (forward + label mapping), `getTopK` (stable softmax + partial sort), no-op `process`, and
+ * mutex-protected `getCachedResult`. Class name table matches training export order. Pair with
+ * `scene_classifier_stage.h`.
+ */
+
 #include "scene_classifier_stage.h"
 #include "../../controls/neural_config.h"
 #include <opencv2/dnn.hpp>
@@ -8,17 +18,15 @@
 #include <vector>
 
 namespace {
-// CIFAR-10 class names; must match ML export/training order.
 const char* kClassNames[] = {
     "airplane", "automobile", "bird", "cat", "deer",
     "dog", "frog", "horse", "ship", "truck",
 };
 constexpr int kNumClasses = static_cast<int>(sizeof(kClassNames) / sizeof(kClassNames[0]));
 
-// ImageNet normalization (MobileNet pretrained); applied per channel on blob.
 const float kMean[] = {0.485f, 0.456f, 0.406f};
 const float kStd[]  = {0.229f, 0.224f, 0.225f};
-}  // namespace
+}
 
 struct SceneClassifierStage::Impl {
     cv::dnn::Net net;
@@ -31,6 +39,9 @@ SceneClassifierStage::SceneClassifierStage() : impl_(std::make_unique<Impl>()) {
 
 SceneClassifierStage::~SceneClassifierStage() = default;
 
+/**
+ * @brief ONNX load wrapped in try/catch — OpenCV throws on missing file / parse error.
+ */
 bool SceneClassifierStage::loadModel(const std::string& path) {
     try {
         impl_->net = cv::dnn::readNetFromONNX(path);
@@ -41,6 +52,9 @@ bool SceneClassifierStage::loadModel(const std::string& path) {
     return !impl_->net.empty();
 }
 
+/**
+ * @brief Builds NCHW float blob and applies `(x-mean)/std` per channel in planar layout.
+ */
 cv::Mat SceneClassifierStage::preprocess(const cv::Mat& frame) {
     cv::Mat resized;
     cv::resize(frame, resized, cv::Size(NeuralConfig::kClassifierInputWidth, NeuralConfig::kClassifierInputHeight), 0, 0, cv::INTER_LINEAR);
@@ -59,6 +73,9 @@ cv::Mat SceneClassifierStage::preprocess(const cv::Mat& frame) {
     return blob;
 }
 
+/**
+ * @brief Full inference + cache update; guards empty frames/nets.
+ */
 void SceneClassifierStage::runInference(const cv::Mat& frame) {
     if (frame.empty() || impl_->net.empty()) return;
     cv::Mat blob = preprocess(frame);
@@ -83,6 +100,9 @@ void SceneClassifierStage::runInference(const cv::Mat& frame) {
     }
 }
 
+/**
+ * @brief Converts logits → probabilities via stable softmax; selects top-k by partial_sort.
+ */
 std::vector<std::pair<int, float>> SceneClassifierStage::getTopK(const cv::Mat& output_blob, int k) {
     // output_blob: (1, num_classes) or (num_classes,) logits; apply softmax then take top-k
     if (output_blob.empty() || !output_blob.isContinuous() || output_blob.type() != CV_32F) return {};
@@ -111,6 +131,9 @@ std::vector<std::pair<int, float>> SceneClassifierStage::getTopK(const cv::Mat& 
     return top_k;
 }
 
+/**
+ * @brief Intentionally does not touch pixels — async path owns compute.
+ */
 void SceneClassifierStage::process(Frame& frame, int64_t* out_latency_us) {
     if (out_latency_us) *out_latency_us = 0;
     // Inference is run by NeuralDispatcher on a background thread.
@@ -118,6 +141,9 @@ void SceneClassifierStage::process(Frame& frame, int64_t* out_latency_us) {
     (void)frame;
 }
 
+/**
+ * @brief Mutex copy of cached struct — cheap for small top-k vectors.
+ */
 SceneResult SceneClassifierStage::getCachedResult() {
     std::lock_guard<std::mutex> lock(result_mutex_);
     if (!result_ready_) return SceneResult();

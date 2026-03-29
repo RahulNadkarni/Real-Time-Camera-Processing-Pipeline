@@ -7,7 +7,6 @@
 struct EdgeDetectionStage::Impl {};
 
 EdgeDetectionStage::EdgeDetectionStage() : impl_(std::make_unique<Impl>()) {}
-
 EdgeDetectionStage::~EdgeDetectionStage() = default;
 
 void EdgeDetectionStage::process(Frame& frame, int64_t* out_latency_us) {
@@ -21,6 +20,7 @@ void EdgeDetectionStage::process(Frame& frame, int64_t* out_latency_us) {
     cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
     cv::Canny(gray, edges, 100, 200);
     cv::cvtColor(edges, dst, cv::COLOR_GRAY2BGR);
+
     if (dst.isContinuous() && dst.data) {
         std::memcpy(frame.buffer.data(), dst.data, size);
     }

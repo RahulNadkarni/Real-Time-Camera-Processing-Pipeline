@@ -4,7 +4,10 @@
 #include <opencv2/core.hpp>
 #include <memory>
 
-/** Result of super-resolution: upscaled image and optional quality metrics. */
+/**
+ * @struct SuperResResult
+ * @brief Upscaled BGR image plus quality metrics vs original-sized comparison.
+ */
 struct SuperResResult {
     cv::Mat upscaled_frame;
     float psnr_db{0.f};
@@ -13,10 +16,12 @@ struct SuperResResult {
 };
 
 /**
- * Neural stage that runs the super-resolution ONNX model (SRCNN or ESRGAN-tiny).
- * Loads superres.onnx. Preprocess downsamples by scale factor; inference returns
- * upscaled image. process() runs every frame if latency allows, else uses cached
- * result. Inference run from NeuralDispatcher so pipeline never blocks.
+ * @class SuperResolutionStage
+ * @brief ONNX SR model (256² tensor contract) with PSNR/SSIM for HUD validation.
+ *
+ * Note: `process` can splat cached upscale into a `Frame`, but the classical pipeline does not
+ * invoke `process` today — only `NeuralDispatcher` calls `runInference`; display reads metrics via
+ * `getCachedResult`.
  */
 class SuperResolutionStage : public NeuralStageBase {
 public:
@@ -24,40 +29,37 @@ public:
     ~SuperResolutionStage() override;
 
     /**
-     * Load ONNX model from path. Blocks on I/O. Call before starting pipeline.
+     * @brief Loads SR ONNX; empty net disables inference.
      */
     bool loadModel(const std::string& path) override;
 
     /**
-     * Preprocess: optionally downscale frame by scale factor for LR input.
-     * Const ref not modified.
+     * @brief Downscales by `scale_factor` then `blobFromImage` to fixed 256² (must match export).
      */
     cv::Mat preprocess(const cv::Mat& frame);
 
     /**
-     * Run SR model forward; return upscaled cv::Mat. Blocks on inference.
+     * @brief Forward, NCHW→HWC, uint8 upscale to `scale_factor` × input dims, compute PSNR/SSIM.
      */
     void runInference(const cv::Mat& frame) override;
 
     /**
-     * Compute PSNR in dB between original and upscaled (same size region).
-     * Const refs not modified. Does not block.
+     * @brief Classic MSE-based PSNR on 8-bit BGR after float conversion (cap at 60 dB near-equal).
      */
     float computePSNR(const cv::Mat& original, const cv::Mat& upscaled);
 
     /**
-     * Compute SSIM between original and upscaled (0–1). Const refs not modified.
+     * @brief Windowed SSIM on grayscale (standard constants C1, C2 for 8-bit range).
      */
     float computeSSIM(const cv::Mat& original, const cv::Mat& upscaled);
 
     /**
-     * Override StageBase: run every frame if latency allows; else use cached result.
-     * Does not block pipeline.
+     * @brief If cache valid, replaces `frame.buffer` with upscaled pixels (unused in current wiring).
      */
     void process(Frame& frame, int64_t* out_latency_us = nullptr) override;
 
     /**
-     * Return last cached SuperResResult (upscaled frame + PSNR/SSIM). Non-blocking; thread-safe.
+     * @brief Returns struct copy holding `cv::Mat` upscaled + metrics (mutex during shallow copy).
      */
     SuperResResult getCachedResult();
 

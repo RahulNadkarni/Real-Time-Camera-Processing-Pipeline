@@ -7,12 +7,13 @@
 #include <string>
 
 /**
- * Abstract base class for all neural inference stages. Inherits from StageBase.
- * Adds loadModel(), runInference(), and getCachedResult() so that inference
- * can be run asynchronously (e.g. by NeuralDispatcher) and the main pipeline
- * never blocks waiting for inference — it only reads the cached result.
- * result_ready flag and a mutex protect the cached result for thread-safe
- * non-blocking reads and single-writer updates.
+ * @class NeuralStageBase
+ * @brief Extends `StageBase` with ONNX load + async `runInference` + cached result pattern.
+ *
+ * Project role: unify how `NeuralDispatcher` drives DNN while `Pipeline::run_stage` **does not**
+ * call heavy `process` for neural workloads (some `process` overrides are no-ops or cache consumers).
+ * Alternatives: pure interface unrelated to `StageBase` (would duplicate `name()` / future hooks);
+ * Coroutine-based inference (complex on portable C++17).
  */
 class NeuralStageBase : public StageBase {
 public:
@@ -20,31 +21,29 @@ public:
     virtual ~NeuralStageBase() override = default;
 
     /**
-     * Load the ONNX model from the given path. Called once at startup or when
-     * model path changes. Blocks on file I/O and net loading; not thread-safe
-     * if called concurrently with runInference or getCachedResult. Call from
-     * dispatcher thread or before starting the pipeline.
+     * @brief Loads weights/graph from ONNX path via `cv::dnn::readNetFromONNX`.
+     *
+     * Typically called once on dispatcher thread before `run` loop. Not thread-safe against
+     * concurrent `runInference` — `start()` sequencing guarantees safety here.
      */
     virtual bool loadModel(const std::string& model_path) = 0;
 
     /**
-     * Run inference on the given frame (OpenCV Mat). Implementations resize/normalize
-     * as needed and run the net forward. Blocks on inference; intended to be
-     * called from the dispatcher background thread only, not from the main
-     * pipeline stage thread.
+     * @brief Executes forward pass(es) synchronously **on dispatcher thread**.
+     *
+     * Must update caches under `result_mutex_`. Caller passes `cv::Mat` view of BGR uint8 data.
      */
     virtual void runInference(const cv::Mat& frame) = 0;
 
     /**
-     * Derived classes implement getCachedResult() returning their result type
-     * (SceneResult, cv::Mat, SuperResResult). Non-blocking; reads cached result
-     * under mutex. Thread-safe for call from display thread.
+     * @brief Derived concrete types implement typed `getCachedResult()` (not virtual here to avoid
+     * return-type covariance pain); see `SceneClassifierStage`, etc.
      */
 
 protected:
-    /** Set when a new result has been written to cache; cleared when cache is stale. */
+    /// @brief Optional fast flag (not always cleared — accuracy depends on derived class usage).
     std::atomic<bool> result_ready_{false};
 
-    /** Protects the cached result (e.g. SceneResult, cv::Mat heatmap, SuperResResult). */
+    /// @brief Serializes cache writes (inference thread) vs reads (display thread).
     std::mutex result_mutex_;
 };

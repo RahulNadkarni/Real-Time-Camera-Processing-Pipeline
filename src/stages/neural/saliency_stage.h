@@ -5,10 +5,11 @@
 #include <memory>
 
 /**
- * Neural stage that runs the saliency U-Net ONNX model. Loads saliency.onnx.
- * Produces a heatmap (cv::Mat) normalized 0–1. Runs inference every 5 frames
- * and caches the heatmap; process() runs every 5 frames and caches. Inference
- * is run from NeuralDispatcher so the pipeline never blocks.
+ * @class SaliencyStage
+ * @brief U-Net style saliency ONNX producing a single-channel importance map.
+ *
+ * Project role: async thumbnail HUD; export contract assumes 224² bilinear input and 32F output
+ * reinterpreted in `postprocess`.
  */
 class SaliencyStage : public NeuralStageBase {
 public:
@@ -16,35 +17,32 @@ public:
     ~SaliencyStage() override;
 
     /**
-     * Load ONNX model from path. Blocks on I/O. Call before starting pipeline.
+     * @brief Load ONNX; false on OpenCV exception.
      */
     bool loadModel(const std::string& path) override;
 
     /**
-     * Preprocess frame for saliency model (resize, normalize). Const ref not modified.
+     * @brief Resize + blobFromImage + ImageNet normalization loops (duplicated from classifier for clarity).
      */
     cv::Mat preprocess(const cv::Mat& frame);
 
     /**
-     * Run saliency model forward; updates cached heatmap. Blocks on inference.
-     * Call from dispatcher only.
+     * @brief Runs net; maps NCHW output plane to `CV_32FC1` heatmap resized to frame size.
      */
     void runInference(const cv::Mat& frame) override;
 
     /**
-     * Upsample the model output blob back to original_size (frame dimensions).
-     * Does not block.
+     * @brief Flattens model blob to H×W float map, then linear upsample to camera resolution.
      */
     cv::Mat postprocess(const cv::Mat& output_blob, const cv::Size& original_size);
 
     /**
-     * Override StageBase: process frame; run inference every 5 frames and cache
-     * heatmap. Does not block pipeline; inference should be in dispatcher.
+     * @brief No classical mutate — increments unused frame counter in impl (legacy hook).
      */
     void process(Frame& frame, int64_t* out_latency_us = nullptr) override;
 
     /**
-     * Return the last cached heatmap (0–1 normalized). Non-blocking; thread-safe.
+     * @brief Returns **clone** of heatmap so display thread owns independent memory.
      */
     cv::Mat getCachedResult();
 

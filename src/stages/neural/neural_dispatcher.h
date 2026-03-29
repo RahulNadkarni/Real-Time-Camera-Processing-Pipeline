@@ -13,72 +13,85 @@
 #include <condition_variable>
 
 /**
- * Orchestrates all three neural stages on a single background thread. Submits
- * frames to a neural queue; run() loop pops frames and dispatches to each stage's
- * runInference(), so the main pipeline never blocks. Tracks neural inference FPS
- * separately from the main pipeline FPS via updateStats(). All get*Result() methods
- * are non-blocking and return the latest cached result from each stage.
+ * @class NeuralDispatcher
+ * @brief Single background thread that runs all ONNX stages on copied frames from capture.
+ *
+ * Project role: decouples expensive `cv::dnn` work from classical `Pipeline` latency. Display
+ * reads **cached** outputs via lock + clone pattern inside each stage. Alternatives: one OS thread
+ * per model (more parallel, more contention on CPU cache), or process pool for batching.
  */
 class NeuralDispatcher {
 public:
+    /**
+     * @brief Constructs three stage objects (models not loaded until `start`).
+     */
     NeuralDispatcher();
+
+    /**
+     * @brief Ensures `stop()` joins worker (RAII safety if caller forgets stop).
+     */
     ~NeuralDispatcher();
 
-    /** Non-copyable, non-movable. */
     NeuralDispatcher(const NeuralDispatcher&) = delete;
     NeuralDispatcher& operator=(const NeuralDispatcher&) = delete;
 
     /**
-     * Load all three ONNX models (paths from NeuralConfig) and start the
-     * background thread. Blocks on load and thread start. Call once after construction.
+     * @brief Loads ONNX from `NeuralConfig` paths (failures leave nets empty), spawns `run` thread.
+     *
+     * Blocking: file IO + net parse + thread creation. Call before pipeline begins producing work
+     * or guard externally — today `Pipeline::start` invokes after camera opens.
      */
     void start();
 
     /**
-     * Signal shutdown, wake the worker, and join the background thread. Blocks
-     * until the thread exits. Idempotent after first call. Thread-safe.
+     * @brief Sets shutdown, wakes condition variable, joins worker.
+     *
+     * Idempotent: `joinable` guard handles double stop. Must complete before destroying stages if
+     * future shared state requires it — current unique_ptrs last until dispatcher destructor after join.
      */
     void stop();
 
     /**
-     * Add a frame to the neural queue for processing. Non-blocking if queue is
-     * not full; may copy or take ownership of frame data so the pipeline can
-     * continue. Thread-safe. Does not block on inference.
+     * @brief Enqueues a **copy** of `frame` for async processing; may drop oldest if queue full.
+     *
+     * What it does: mutex + push `Frame` value (pixel buffer memcpy via `Frame` copy); if depth
+     * exceeds cap, pop front — **latest-biased** policy for live preview (old frames discarded).
+     * Notifies one waiter. Never calls `runInference` inline — capture thread stays cheap.
      */
     void submitFrame(const Frame& frame);
 
     /**
-     * Return the latest cached scene classifier result. Non-blocking; thread-safe.
+     * @brief Reads cached scene classification from `SceneClassifierStage` (mutex inside stage).
      */
     SceneResult getSceneResult();
 
     /**
-     * Return the latest cached saliency heatmap. Non-blocking; thread-safe.
+     * @brief Reads cached saliency `cv::Mat` (may be empty).
      */
     cv::Mat getSaliencyResult();
 
     /**
-     * Return the latest cached super-resolution result. Non-blocking; thread-safe.
+     * @brief Reads cached SR metrics + optional upscaled image buffer in `SuperResResult`.
      */
     SuperResResult getSuperResResult();
 
     /**
-     * Main loop for the background thread: pop frame from queue, run each neural
-     * stage's runInference() (every N frames per stage), then updateStats().
-     * Blocks on queue pop when idle. Called only from the dispatcher thread.
+     * @brief Worker loop: wait on queue, pop one frame, run throttled inferences, update stats.
+     *
+     * `cv::Mat` header wraps copied neural-queue buffer data — pointer valid for this iteration only.
+     * Throttle uses `frames_processed % NeuralConfig::k*RunEveryNFrames` gated calls per stage.
      */
     void run();
 
     /**
-     * Update neural inference FPS and any latency stats. Call from run() after
-     * processing a frame. Uses a separate latency tracker distinct from the main
-     * pipeline profiler (PipelineStats). Thread-safe if only called from run().
+     * @brief Updates instantaneous neural FPS estimate from inter-dequeue times.
+     *
+     * Not integrated with `PipelineStats` — separate concern for future neural HUD line.
      */
     void updateStats();
 
     /**
-     * Return current neural inference FPS (frames processed per second by the
-     * dispatcher). Thread-safe for read.
+     * @brief Returns last computed `neural_fps_` under mutex.
      */
     double getNeuralFps() const;
 
@@ -93,7 +106,6 @@ private:
     std::atomic<bool> shutdown_{false};
     std::thread worker_thread_;
 
-    /** Separate latency tracker for neural inference (not PipelineStats). */
     mutable std::mutex stats_mutex_;
     double neural_fps_{0.0};
     std::chrono::steady_clock::time_point last_inference_time_;

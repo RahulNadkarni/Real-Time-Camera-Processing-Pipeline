@@ -7,7 +7,6 @@
 struct NoiseReductionStage::Impl {};
 
 NoiseReductionStage::NoiseReductionStage() : impl_(std::make_unique<Impl>()) {}
-
 NoiseReductionStage::~NoiseReductionStage() = default;
 
 void NoiseReductionStage::process(Frame& frame, int64_t* out_latency_us) {
@@ -18,9 +17,8 @@ void NoiseReductionStage::process(Frame& frame, int64_t* out_latency_us) {
     ScopedTimer timer(name());
     cv::Mat src(frame.height, frame.width, CV_8UC3, frame.buffer.data());
 
-    const double scale = 0.5;
     cv::Mat half;
-    cv::resize(src, half, cv::Size(), scale, scale, cv::INTER_LINEAR);
+    cv::resize(src, half, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
     cv::Mat half_filtered;
     cv::bilateralFilter(half, half_filtered, 5, 50.0, 50.0);
     cv::Mat dst;

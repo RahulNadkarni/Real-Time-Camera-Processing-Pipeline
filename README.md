@@ -1,5 +1,7 @@
 # Real-Time Camera Processing Pipeline
 
+**Docs:** [Architecture (graphs & rationale)](docs/ARCHITECTURE.md) · [Code reference (files, functions, design tradeoffs)](docs/REFERENCE.md)
+
 A multi-threaded image processing pipeline that simulates a camera capture stack: capture from a webcam, run a configurable chain of stages (debayer, noise reduction, tone mapping, histogram, edge detection), plus **neural inference stages** (scene classification, saliency, super-resolution), and display the result with per-stage latency and keyboard toggles.
 
 ## Features

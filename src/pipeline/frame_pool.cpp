@@ -4,7 +4,7 @@ FramePool::FramePool(int capacity, int width, int height, int channels)
     : width_(width), height_(height), channels_(channels) {
     pool_.reserve(static_cast<size_t>(capacity));
     for (int i = 0; i < capacity; i++) {
-        std::unique_ptr<Frame> frame = std::make_unique<Frame>();
+        auto frame = std::make_unique<Frame>();
         frame->width = width;
         frame->height = height;
         frame->channels = channels;
@@ -15,18 +15,14 @@ FramePool::FramePool(int capacity, int width, int height, int channels)
 
 std::unique_ptr<Frame> FramePool::acquire() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (pool_.empty()) {
-        return nullptr;
-    }
-    std::unique_ptr<Frame> frame = std::move(pool_.back());
+    if (pool_.empty()) return nullptr;
+    auto frame = std::move(pool_.back());
     pool_.pop_back();
     return frame;
 }
 
 void FramePool::release(std::unique_ptr<Frame> frame) {
-    if (!frame) {
-        return;
-    }
+    if (!frame) return;
     std::lock_guard<std::mutex> lock(mutex_);
     pool_.push_back(std::move(frame));
 }
