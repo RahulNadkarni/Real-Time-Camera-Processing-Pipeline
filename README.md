@@ -7,8 +7,6 @@ A multi-threaded image processing pipeline that simulates a camera capture stack
 ## Features
 
 - **Classic image processing:** Debayer, noise reduction, tone mapping, histogram, edge detection
-- **Neural stages:** Scene classifier, saliency heatmap, super-resolution (all run asynchronously on a background thread)
-- **Overlays:** Scene labels, saliency heatmap blend, PSNR/SSIM metrics
 
 ## Dependencies
 
